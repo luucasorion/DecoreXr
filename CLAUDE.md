@@ -24,7 +24,9 @@ agent enforces this and the rest of §8.
   **Do not stack PRs.**
 - Set each PR's **milestone + project** to match its issue. Issues are **closed manually** (a
   `dev` merge does not auto-close them).
-- Use the `/issue m# t#` (or `/issue next`) skill to pick up a task.
+- Use the `/issue m# t#` (or `/issue next`) skill to pick up a single task, or
+  `/milestone m#` (or `/milestone next`) to drive a whole milestone task-by-task (serial,
+  one PR in flight, resumable between merges).
 
 ## Environment / conventions
 - OS is **Windows**, shell is **PowerShell**. For `git`/`gh` **multi-line bodies**, write the
