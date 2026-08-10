@@ -1,0 +1,17 @@
+{
+    "name": "DecoreXR.Painting",
+    "rootNamespace": "DecoreXR.Painting",
+    "references": [
+        "DecoreXR.Core",
+        "DecoreXR.Spatial"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

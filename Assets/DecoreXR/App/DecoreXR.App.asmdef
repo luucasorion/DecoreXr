@@ -1,0 +1,19 @@
+{
+    "name": "DecoreXR.App",
+    "rootNamespace": "DecoreXR.App",
+    "references": [
+        "DecoreXR.Core",
+        "DecoreXR.Spatial",
+        "DecoreXR.Interaction",
+        "DecoreXR.Painting"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

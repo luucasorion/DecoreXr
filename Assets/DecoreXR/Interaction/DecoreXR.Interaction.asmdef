@@ -1,0 +1,17 @@
+{
+    "name": "DecoreXR.Interaction",
+    "rootNamespace": "DecoreXR.Interaction",
+    "references": [
+        "DecoreXR.Core",
+        "DecoreXR.Spatial"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
