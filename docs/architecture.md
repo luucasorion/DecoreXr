@@ -61,11 +61,14 @@ physical walls. All decoration actions flow through one command history and can 
   serializer that reads/writes command lists as JSON keyed by anchor UUID (ADR 0006), and
   shared interfaces/value types (e.g. wall-local `(u,v)`). Knows nothing about MRUK or UI.
 - **Spatial** — wraps MRUK: requests scene permission, loads walls as `MRUKAnchor`, exposes
-  them (and manual fallback planes) as `IPaintableSurface`, performs ray/plane raycasts, and
-  resolves anchor UUIDs. The only assembly that references Meta scene APIs.
+  them (and manual fallback planes) as `IPaintableSurface` with its plane, rectangle and `(u,v)`
+  mapping, and resolves anchor UUIDs. The only assembly that references Meta scene APIs.
 - **Interaction** — provides `IPointerSource` implementations for controller ray and hand
-  pinch (ADR 0002) with pen-down/up events, and turns a pointer + surface into a selected
-  surface and a `(u,v)` hit. *Selection is an organizational grouping within this assembly.*
+  pinch (ADR 0002) with pen-down/up events, intersects a pointer ray with the `IPaintableSurface`
+  plane + rectangle, and turns the nearest hit into a selected surface and a `(u,v)`. Hit-testing
+  lives here rather than in `Spatial` so walls and manual fallback planes are selected by one piece
+  of code and no MRUK type crosses the seam (ADR 0010, §8.2).
+  *Selection is an organizational grouping within this assembly.*
   The two sources are arbitrated behind one `IPointerSource` so nothing downstream asks which
   is live: a source that is mid-press keeps the pointer until it releases (a stroke is never
   handed to another input halfway through), an already-pressed source outranks a merely active

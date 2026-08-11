@@ -111,7 +111,9 @@ live as namespaces/classes **inside** these assemblies.
 
 - **Scene understanding:** request `ScenePermission`; MRUK loads walls as `MRUKAnchor` (WALL_FACE)
   with pose + dimensions. Don't roll custom plane detection.
-- **Wall selection:** one ray → `MRUK.Raycast` against anchor planes → hit = wall + `(u,v)`.
+- **Wall selection:** one ray → intersect the `IPaintableSurface` plane + rectangle → hit = surface
+  + `(u,v)`. Hit-testing goes through the seam rather than `MRUK.Raycast` so a manual fallback plane
+  is selected by the same code as a wall, and MRUK stays inside `Spatial` (ADR 0010).
 - **Paint mapping:** per-wall quad sized to the plane; material albedo = a texture; painting draws
   into it at `(u,v)`. Fill = clear to color; shapes = raster the shape; brush = interpolated polyline.
 - **Alignment:** parent the paint quad to the wall's **spatial anchor**, never to the camera.
