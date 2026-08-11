@@ -14,11 +14,13 @@ namespace DecoreXR.Interaction
     /// wins over a merely active one, so picking up a controller and squeezing takes over
     /// immediately rather than waiting for the hand to drop out of view.
     /// <para>
-    /// Sampling happens in <c>LateUpdate</c>, after the candidates have taken their own readings in
-    /// <c>Update</c>, so what is forwarded is this frame's aim rather than last frame's.
+    /// It runs after the candidates have taken their own readings — see
+    /// <see cref="InteractionExecutionOrder"/> — so what it forwards is this frame's aim rather than
+    /// last frame's.
     /// </para>
     /// </remarks>
     [DisallowMultipleComponent]
+    [DefaultExecutionOrder(InteractionExecutionOrder.PointerRouter)]
     public sealed class ActivePointerSource : PointerSourceBehaviour
     {
         [Tooltip("Candidate pointers in priority order — the first usable one wins when none is " +
@@ -32,13 +34,6 @@ namespace DecoreXR.Interaction
 
         /// <inheritdoc />
         public override PointerKind Kind => current != null ? current.Kind : PointerKind.Controller;
-
-        protected override void Update()
-        {
-            // Deliberately empty: see LateUpdate.
-        }
-
-        private void LateUpdate() => Sample();
 
         protected override void OnDisable()
         {

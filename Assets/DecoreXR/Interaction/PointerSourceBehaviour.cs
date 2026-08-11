@@ -13,6 +13,7 @@ namespace DecoreXR.Interaction
     /// a press. Everything the interface promises about edges and loss of tracking lives here, so
     /// the controller (M2-T1) and hand (M2-T2) sources cannot drift apart on it.
     /// </remarks>
+    [DefaultExecutionOrder(InteractionExecutionOrder.PointerSource)]
     public abstract class PointerSourceBehaviour : MonoBehaviour, IPointerSource
     {
         private Ray ray;
@@ -43,13 +44,8 @@ namespace DecoreXR.Interaction
         /// <param name="pressed">Whether the pen is down. Ignored when the sample fails.</param>
         protected abstract bool TrySample(out Ray aim, out bool pressed);
 
-        protected virtual void Update() => Sample();
-
-        /// <summary>
-        /// Takes this frame's reading and publishes it. Exposed separately from <c>Update</c> so a
-        /// source that has to read <em>other</em> sources can sample later in the frame instead.
-        /// </summary>
-        protected void Sample()
+        /// <summary>Takes this frame's reading and publishes it.</summary>
+        protected virtual void Update()
         {
             if (!TrySample(out var aim, out var pressed))
             {
