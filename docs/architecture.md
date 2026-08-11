@@ -66,6 +66,11 @@ physical walls. All decoration actions flow through one command history and can 
 - **Interaction** — provides `IPointerSource` implementations for controller ray and hand
   pinch (ADR 0002) with pen-down/up events, and turns a pointer + surface into a selected
   surface and a `(u,v)` hit. *Selection is an organizational grouping within this assembly.*
+  The two sources are arbitrated behind one `IPointerSource` so nothing downstream asks which
+  is live: a source that is mid-press keeps the pointer until it releases (a stroke is never
+  handed to another input halfway through), an already-pressed source outranks a merely active
+  one, and otherwise the first usable source in configured order wins — controller first, as
+  ADR 0002 makes it the primary path. *The arbitration rules are an organizational choice.*
 - **Painting** — the paint model: command types (fill, brush, circle, rectangle, triangle,
   diamond, stripe, …), the renderer that draws a command list into a per-wall texture within
   the data-driven budget (ADR 0004), and the per-wall canvas registry keyed by anchor UUID.
@@ -180,3 +185,4 @@ physical walls. All decoration actions flow through one command history and can 
 | URP render pipeline + passthrough constraints | ADR 0014 |
 | `dev`-based git workflow, ADR gate | ADR 0015 |
 | Selection grouping in `Interaction`; composition root in `App` | *organizational choice* |
+| Controller-vs-hand arbitration behind one `IPointerSource` (§3) | ADR 0002 (one interface); rules are an *organizational choice* |

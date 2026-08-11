@@ -21,7 +21,11 @@ namespace DecoreXR.Interaction
     /// </remarks>
     public interface IPointerSource
     {
-        /// <summary>Which physical input is behind this pointer.</summary>
+        /// <summary>
+        /// Which physical input is behind this pointer. Like <see cref="Ray"/>, only meaningful
+        /// while <see cref="IsActive"/> — a pointer that is standing in for several has nothing
+        /// truthful to report about which one until one of them is live.
+        /// </summary>
         PointerKind Kind { get; }
 
         /// <summary>

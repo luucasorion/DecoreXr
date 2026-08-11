@@ -43,7 +43,13 @@ namespace DecoreXR.Interaction
         /// <param name="pressed">Whether the pen is down. Ignored when the sample fails.</param>
         protected abstract bool TrySample(out Ray aim, out bool pressed);
 
-        protected virtual void Update()
+        protected virtual void Update() => Sample();
+
+        /// <summary>
+        /// Takes this frame's reading and publishes it. Exposed separately from <c>Update</c> so a
+        /// source that has to read <em>other</em> sources can sample later in the frame instead.
+        /// </summary>
+        protected void Sample()
         {
             if (!TrySample(out var aim, out var pressed))
             {
