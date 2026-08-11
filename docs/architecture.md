@@ -143,7 +143,9 @@ physical walls. All decoration actions flow through one command history and can 
 2. **Isolation** — assembly dependencies flow one way (§4). No cyclic references; `Spatial`,
    `Interaction`, `Core` never depend on `App`/`Painting`. MRUK types stay inside `Spatial`.
 3. **Config-stays-config** — quality budgets (texels/m, texture cap, occlusion toggles) live in
-   a config asset, not as magic numbers in code (ADR 0004, 0012).
+   a config asset, not as magic numbers in code (ADR 0004, 0012). Concrete home:
+   `DecoreXR.Core.QualityBudgetConfig` (`Assets/DecoreXR/Core/QualityBudgetConfig.cs`, default
+   asset `QualityBudgetConfig.asset`) — data-driven per-platform `standalone`/`pcvr` budgets.
 4. **Lifecycle / teardown** — objects that allocate GPU resources (textures, render targets) or
    subscribe to events must release/unsubscribe on teardown. No leaked RenderTextures.
 5. **Fail-to-error-state** — missing scene, denied permission, or a missing anchor on load must
