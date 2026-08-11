@@ -2,7 +2,9 @@
     "name": "DecoreXR.Spatial",
     "rootNamespace": "DecoreXR.Spatial",
     "references": [
-        "DecoreXR.Core"
+        "DecoreXR.Core",
+        "Oculus.VR",
+        "meta.xr.mrutilitykit"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
