@@ -3,7 +3,8 @@
     "rootNamespace": "DecoreXR.Interaction",
     "references": [
         "DecoreXR.Core",
-        "DecoreXR.Spatial"
+        "DecoreXR.Spatial",
+        "Oculus.VR"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

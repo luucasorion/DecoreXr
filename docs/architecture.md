@@ -95,7 +95,8 @@ physical walls. All decoration actions flow through one command history and can 
 - Meta XR Core SDK + MR Utility Kit (MRUK) — scene, walls, raycasts (ADR 0001)
 - Meta Depth API — environment occlusion (ADR 0005)
 - Universal Render Pipeline 17.3 (ADR 0014)
-- Unity Input System 1.19 — controller/hand input plumbing
+- Meta XR Core SDK input — `OVRInput` (controller) and `OVRHand` (pinch) feed the `IPointerSource`
+  implementations (ADR 0001, ADR 0002); it reads through Unity Input System 1.19 underneath
 
 **Editor / tooling (not shipped in the build)**
 - Unity MCP `com.coplaydev.unity-mcp` (ADR 0013)
@@ -163,6 +164,7 @@ physical walls. All decoration actions flow through one command history and can 
 |-----------------------|-----------------|
 | Meta XR SDK / MRUK in `Spatial` | ADR 0001 |
 | `IPointerSource` (controller + hands) in `Interaction` | ADR 0002 |
+| `OVRInput`/`OVRHand` as the pointer sources' input backend | ADR 0001 (Meta SDK), ADR 0002 |
 | Command list + renderer + per-wall texture in `Painting` | ADR 0003 |
 | Canvas budget (256/1024, data-driven) | ADR 0004 |
 | Depth occlusion + z-offset | ADR 0005 |
