@@ -24,9 +24,13 @@ agent enforces this and the rest of §8.
   **Do not stack PRs.**
 - Set each PR's **milestone + project** to match its issue. Issues are **closed manually** (a
   `dev` merge does not auto-close them).
-- Use the `/issue m# t#` (or `/issue next`) skill to pick up a single task, or
-  `/milestone m#` (or `/milestone next`) to drive a whole milestone task-by-task (serial,
-  one PR in flight, resumable between merges).
+- **Milestone rule (ADR 0015):** a `/milestone m#` run does **not** PR per task. It creates one
+  integration branch **`M#` off `dev`**, commits each task to `M#` (each still `adr-guardian`-
+  reviewed, `M#-T#` in the commit subject), and lands the milestone via **one maintainer PR
+  `M# → dev`** at the end. A task is "done" when its marker is in `M#` commit subjects; on-device
+  tasks (ADR 0011) may be deferred and the PR opened for the runnable subset.
+- Use the `/issue m# t#` (or `/issue next`) skill for a single task (per-task PR into `dev`), or
+  `/milestone m#` (or `/milestone next`) for a whole milestone (integration branch → one PR).
 
 ## Environment / conventions
 - OS is **Windows**, shell is **PowerShell**. For `git`/`gh` **multi-line bodies**, write the
