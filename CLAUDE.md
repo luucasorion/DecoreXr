@@ -33,8 +33,9 @@ agent enforces this and the rest of §8.
   body to a file and use `-F` / `--body-file` (inline `-m` / here-strings break).
 - Call `gh` by full path if not on PATH: `/c/Program Files/GitHub CLI/gh`.
 - Meta-XR Editor setup (rig, passthrough, Android manifest, permissions, MRUK, Interaction SDK)
-  goes through the **Meta XR MCP Extension** (ADR 0013), not hand-config. Confirm the Unity MCP
-  endpoint (this env used HTTP on port **8080**) before calling Unity MCP tools.
+  goes through the **coplayDev Unity MCP** at `http://127.0.0.1:8080` (ADR 0013) — via
+  `execute_code` + `BlockData.ContextMenuInstall()` — not hand-config. The Meta XR MCP Extension
+  is optional/supplementary. Confirm the endpoint (HTTP port **8080**) before any Unity MCP call.
 - Persist non-obvious facts to Claude Code memory with a one-line pointer in `MEMORY.md`.
 
 ## Scope discipline

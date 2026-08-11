@@ -105,3 +105,8 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# Meta XR Immersive Debugger DevAgent — per-machine editor artifact containing
+# a local server address + access tokens. Machine-local, must not be committed.
+/[Aa]ssets/[Rr]esources/DevAgentSettings.asset
+/[Aa]ssets/[Rr]esources/DevAgentSettings.asset.meta
