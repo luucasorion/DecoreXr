@@ -5,7 +5,9 @@
         "DecoreXR.Core",
         "DecoreXR.Spatial",
         "DecoreXR.Interaction",
-        "DecoreXR.Painting"
+        "DecoreXR.Painting",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

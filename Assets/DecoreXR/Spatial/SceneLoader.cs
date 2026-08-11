@@ -70,6 +70,65 @@ namespace DecoreXR.Spatial
             return inFlight;
         }
 
+        /// <summary>
+        /// Sends the user into the system Space Setup flow and reloads the scene model when they
+        /// return, so an unscanned room can be fixed without restarting the app (ADR 0010).
+        /// Backing out of Space Setup is a normal outcome and leaves the status at
+        /// <see cref="SceneLoadStatus.NoSceneFound"/> — the manual plane fallback stays available.
+        /// </summary>
+        public Task<SceneLoadStatus> RequestSpaceSetupAsync()
+        {
+            if (inFlight != null && !inFlight.IsCompleted)
+            {
+                return inFlight;
+            }
+
+            inFlight = RequestSpaceSetupInternalAsync();
+            return inFlight;
+        }
+
+        private async Task<SceneLoadStatus> RequestSpaceSetupInternalAsync()
+        {
+            SetStatus(SceneLoadStatus.Loading);
+
+            // Space Setup edits the scene model, so it needs the same permission the load does.
+            var permitted = await RequestScenePermissionAsync();
+            if (this == null)
+            {
+                return SceneLoadStatus.Failed;
+            }
+
+            if (!permitted)
+            {
+                return SetStatus(SceneLoadStatus.PermissionDenied);
+            }
+
+            bool captured;
+            try
+            {
+                captured = await OVRScene.RequestSpaceSetup();
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"[{nameof(SceneLoader)}] Space Setup could not be started: {exception}", this);
+                return SetStatus(SceneLoadStatus.Failed);
+            }
+
+            if (this == null)
+            {
+                return SceneLoadStatus.Failed;
+            }
+
+            if (!captured)
+            {
+                // The user dismissed Space Setup without scanning. Still nothing to paint.
+                return SetStatus(SceneLoadStatus.NoSceneFound);
+            }
+
+            // Reload in-place rather than through LoadAsync: this call already owns the in-flight slot.
+            return await LoadInternalAsync();
+        }
+
         private async Task<SceneLoadStatus> LoadInternalAsync()
         {
             SetStatus(SceneLoadStatus.Loading);

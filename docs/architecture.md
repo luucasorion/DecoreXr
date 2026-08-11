@@ -171,6 +171,7 @@ physical walls. All decoration actions flow through one command history and can 
 | 5-assembly layout + future `Furniture` | ADR 0008 |
 | Wrist-anchored uGUI palette in `App` | ADR 0009 |
 | `IPaintableSurface` + manual-plane fallback | ADR 0010 |
+| No-scene guidance panel in `App` (world-space uGUI) | ADR 0010 (guidance), ADR 0009 (uGUI) |
 | Editor/Simulator + on-device verification | ADR 0011 |
 | Data-driven budgets for PCVR | ADR 0012 |
 | Unity MCP + Meta XR MCP Extension (tooling) | ADR 0013 |
