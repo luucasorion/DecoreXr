@@ -437,6 +437,7 @@ GameObject:
   - component: {fileID: 330705515}
   - component: {fileID: 330705518}
   - component: {fileID: 330705519}
+  - component: {fileID: 330705520}
   m_Layer: 0
   m_Name: '[BuildingBlock] MR Utility Kit'
   m_TagString: Untagged
@@ -574,6 +575,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 59693b887e7556e47aefa0e5cdf7bd15, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DecoreXR.Spatial::DecoreXR.Spatial.MrukWallSurfaceProvider
+--- !u!114 &330705520
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330705514}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ca00d10aa80d344b91e1a1f9826843c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DecoreXR.Spatial::DecoreXR.Spatial.ManualPlaneSurfaceProvider
+  defaultSize: {x: 2, y: 2.5}
+  planeVisualPrefab: {fileID: 0}
 --- !u!1 &377963483
 GameObject:
   m_ObjectHideFlags: 0
