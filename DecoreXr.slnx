@@ -1,4 +1,9 @@
 ﻿<Solution>
   <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="DecoreXR.Spatial.csproj" />
+  <Project Path="DecoreXR.Interaction.csproj" />
+  <Project Path="DecoreXR.Painting.csproj" />
+  <Project Path="DecoreXR.App.csproj" />
+  <Project Path="DecoreXR.Core.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
 </Solution>

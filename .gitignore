@@ -110,3 +110,7 @@ InitTestScene*.unity*
 # a local server address + access tokens. Machine-local, must not be committed.
 /[Aa]ssets/[Rr]esources/DevAgentSettings.asset
 /[Aa]ssets/[Rr]esources/DevAgentSettings.asset.meta
+
+# Unity AI Assistant editor settings — per-machine (holds a local git path and
+# checkpoint prefs), not project configuration.
+/[Pp]roject[Ss]ettings/[Pp]ackages/com.unity.ai.assistant/

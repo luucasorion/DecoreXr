@@ -174,6 +174,8 @@ physical walls. All decoration actions flow through one command history and can 
 | `IPointerSource` (controller + hands) in `Interaction` | ADR 0002 |
 | `OVRInput`/`OVRHand` as the pointer sources' input backend | ADR 0001 (Meta SDK), ADR 0002 |
 | Command list + renderer + per-wall texture in `Painting` | ADR 0003 |
+| `IPaintCommand` + `PaintHistory` in `Core`; commands carry a surface id, not a surface | ADR 0003 (command list), ADR 0007 (one global stack), ADR 0006 (id survives save/load) |
+| `IPaintCanvas` — the `(u,v)` drawing seam a command renders itself into (`Core`) | ADR 0003 ("a renderer must translate commands → texture"; adding a tool adds a command type); the canvas owns the `(u,v)`→texel mapping so resolution stays config, ADR 0004 |
 | Canvas budget (256/1024, data-driven) | ADR 0004 |
 | Depth occlusion + z-offset | ADR 0005 |
 | JSON persistence keyed by anchor UUID in `Core` | ADR 0006 |
