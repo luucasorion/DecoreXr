@@ -14,6 +14,20 @@ namespace DecoreXR.Core
     [CreateAssetMenu(fileName = "QualityBudgetConfig", menuName = "DecoreXR/Quality Budget Config")]
     public sealed class QualityBudgetConfig : ScriptableObject
     {
+        /// <summary>
+        /// How much the depth occlusion is allowed to cost when it is on (ADR 0005). Declared here
+        /// rather than reusing the XR SDK's own enum because <c>Core</c> holds no Meta references;
+        /// the composition root maps this onto the SDK's mode (architecture §4).
+        /// </summary>
+        public enum OcclusionQuality
+        {
+            /// <summary>A hard per-pixel cutoff. Cheapest, with a visibly stepped edge.</summary>
+            Hard = 0,
+
+            /// <summary>A softened edge from a preprocessed depth texture. Better looking, costs more.</summary>
+            Soft = 1,
+        }
+
         /// <summary>One platform's canvas budget. See ADR 0004 for the standalone defaults.</summary>
         [System.Serializable]
         public struct Budget
@@ -26,18 +40,37 @@ namespace DecoreXR.Core
 
             [Tooltip("Enable environment depth occlusion (ADR 0005). Costs GPU headroom on standalone.")]
             public bool occlusionEnabled;
+
+            [Tooltip("How the occlusion edge is resolved when occlusion is on (ADR 0005). Soft looks " +
+                     "better and costs more; which one standalone can afford is decided on device " +
+                     "(ADR 0011), so it lives here as config rather than in the shader.")]
+            public OcclusionQuality occlusionQuality;
         }
 
         [Header("Standalone (Quest 3) — primary target, ADR 0004")]
         [SerializeField]
-        private Budget standalone = new Budget { texelsPerMeter = 256, maxTextureSize = 1024, occlusionEnabled = true };
+        private Budget standalone = new Budget
+        {
+            texelsPerMeter = 256,
+            maxTextureSize = 1024,
+            occlusionEnabled = true,
+            // Soft is the SDK's own default and the one worth measuring first; M4-T2 drops it to
+            // Hard if the standalone frame budget says so (ADR 0011).
+            occlusionQuality = OcclusionQuality.Soft,
+        };
 
         // PCVR budget exists so quality can scale by config only (ADR 0012). Concrete PCVR values
         // are NOT decided yet — they await their own ADR when PCVR is actually built (post-MVP), so
         // this stub mirrors the standalone defaults rather than asserting invented numbers.
         [Header("PCVR (Quest Link / PC OpenXR) — placeholder = standalone until a PCVR ADR, ADR 0012")]
         [SerializeField]
-        private Budget pcvr = new Budget { texelsPerMeter = 256, maxTextureSize = 1024, occlusionEnabled = true };
+        private Budget pcvr = new Budget
+        {
+            texelsPerMeter = 256,
+            maxTextureSize = 1024,
+            occlusionEnabled = true,
+            occlusionQuality = OcclusionQuality.Soft,
+        };
 
         /// <summary>The standalone-Android budget (ADR 0004 defaults).</summary>
         public Budget Standalone => standalone;

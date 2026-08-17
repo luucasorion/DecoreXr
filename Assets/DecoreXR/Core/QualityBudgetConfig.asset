@@ -16,7 +16,9 @@ MonoBehaviour:
     texelsPerMeter: 256
     maxTextureSize: 1024
     occlusionEnabled: 1
+    occlusionQuality: 1
   pcvr:
     texelsPerMeter: 256
     maxTextureSize: 1024
     occlusionEnabled: 1
+    occlusionQuality: 1

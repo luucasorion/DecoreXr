@@ -178,6 +178,8 @@ physical walls. All decoration actions flow through one command history and can 
 | `IPaintCanvas` — the `(u,v)` drawing seam a command renders itself into (`Core`) | ADR 0003 ("a renderer must translate commands → texture"; adding a tool adds a command type); the canvas owns the `(u,v)`→texel mapping so resolution stays config, ADR 0004 |
 | Canvas budget (256/1024, data-driven) | ADR 0004 |
 | Depth occlusion + z-offset | ADR 0005 |
+| `com.unity.xr.meta-openxr` as the depth *provider* under the OpenXR runtime | ADR 0017 (provider package), ADR 0005 (the occlusion decision), ADR 0016 (the runtime it must not reverse) |
+| `EnvironmentOcclusion` in `App` — occlusion on/off + quality from the budget | ADR 0005, ADR 0004/0012 (config-driven), *placement in `App` is an organizational choice: it switches global render state and keeps the depth SDK out of `Painting`* |
 | JSON persistence keyed by anchor UUID in `Core` | ADR 0006 |
 | Single global undo/redo stack in `Core` | ADR 0007 |
 | 5-assembly layout + future `Furniture` | ADR 0008 |
