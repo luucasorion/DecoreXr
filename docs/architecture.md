@@ -74,8 +74,8 @@ physical walls. All decoration actions flow through one command history and can 
   handed to another input halfway through), an already-pressed source outranks a merely active
   one, and otherwise the first usable source in configured order wins — controller first, as
   ADR 0002 makes it the primary path. *The arbitration rules are an organizational choice.*
-- **Painting** — the paint model: command types (fill, brush, circle, rectangle, triangle,
-  diamond, stripe, …), the renderer that draws a command list into a per-wall texture within
+- **Painting** — the paint model: command types (fill, brush, eraser, circle, rectangle,
+  triangle, diamond, stripe, …), the renderer that draws a command list into a per-wall texture within
   the data-driven budget (ADR 0004), and the per-wall canvas registry keyed by anchor UUID.
 - **App** — bootstraps the scene, builds the wrist-anchored uGUI palette (ADR 0009), and wires
   Interaction → Painting → Core through their public interfaces. Owns tool/color selection state.

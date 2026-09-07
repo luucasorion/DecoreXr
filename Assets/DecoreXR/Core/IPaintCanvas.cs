@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace DecoreXR.Core
@@ -15,7 +16,8 @@ namespace DecoreXR.Core
     /// around (ADR 0006).
     /// <para>
     /// Each new tool adds the one operation it needs here. <see cref="FillAll"/> is M3's whole-wall
-    /// paint and <see cref="FillCircle"/> is M5's shape; M6 brings strokes.
+    /// paint, <see cref="FillCircle"/> is M5's shape, and <see cref="StrokePolyline"/> and
+    /// <see cref="ErasePolyline"/> are M6's brush and eraser.
     /// </para>
     /// </remarks>
     public interface IPaintCanvas
@@ -42,5 +44,60 @@ namespace DecoreXR.Core
         /// the wall rather than being rejected or wrapped round to the far side.
         /// </remarks>
         void FillCircle(Vector2 center, float radius, Color32 color);
+
+        /// <summary>
+        /// Paints a stroke of constant width along a polyline across the surface — the freehand
+        /// brush.
+        /// </summary>
+        /// <param name="points">
+        /// The stroke's path in the surface's normalized <c>(u,v)</c>, in the order it was drawn.
+        /// The canvas interpolates between consecutive points, so the caller samples the path and
+        /// the canvas fills the gaps: a drag sampled every few millimetres still paints a
+        /// continuous line rather than a row of dots. A single point paints a round dab, which is
+        /// what a tap with the brush means.
+        /// </param>
+        /// <param name="width">
+        /// The stroke's full width in <em>metres</em>, for the same reason
+        /// <see cref="FillCircle"/> takes metres: a width in <c>(u,v)</c> would be a different real
+        /// thickness on every wall, and a different one along <c>u</c> than along <c>v</c>. Ends
+        /// and corners are round, so a stroke has the width the user asked for whichever way it
+        /// turns. Non-positive widths paint nothing.
+        /// </param>
+        /// <param name="color">The colour to paint.</param>
+        /// <remarks>
+        /// The whole polyline is one operation rather than a segment at a time because a stroke has
+        /// to composite as a single shape: painted segment by segment, every overlap where one
+        /// segment's soft edge fell on the next one's body would show as a seam down the line.
+        /// <para>
+        /// Clipped to the surface, like a circle: a stroke that runs off the wall is cut off by it.
+        /// A null or empty path paints nothing and is not an error — it is a gesture that ended
+        /// before it had anywhere to go.
+        /// </para>
+        /// </remarks>
+        void StrokePolyline(IReadOnlyList<Vector2> points, float width, Color32 color);
+
+        /// <summary>
+        /// Takes paint back off the surface along a polyline — the eraser.
+        /// </summary>
+        /// <param name="points">
+        /// The path in the surface's normalized <c>(u,v)</c>, interpolated and capped exactly as
+        /// <see cref="StrokePolyline"/>'s is, so the eraser covers the same ground a brush of the
+        /// same width would.
+        /// </param>
+        /// <param name="width">The erased band's full width in metres. Non-positive widths erase nothing.</param>
+        /// <remarks>
+        /// Erasing removes paint, not wall: what is left behind is the surface's unpainted state,
+        /// through which passthrough shows the real wall again. It is not "paint the wall's own
+        /// colour", which nothing here knows and which would leave a patch that later paint could
+        /// not be told apart from.
+        /// <para>
+        /// A command like any other rather than a rewriting of the history, so it lands in the one
+        /// global list in the order the user did it (ADR 0007): it takes off whatever the commands
+        /// before it put down, and a command after it paints over the hole. That is also what keeps
+        /// undo able to bring the erased paint back — the erase is a thing that can be undone, not
+        /// paint that was destroyed.
+        /// </para>
+        /// </remarks>
+        void ErasePolyline(IReadOnlyList<Vector2> points, float width);
     }
 }

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using DecoreXR.Core;
 using DecoreXR.Spatial;
 using UnityEngine;
@@ -51,6 +53,17 @@ namespace DecoreXR.Painting
         private Material material;
         private Texture2D texture;
         private IPaintableSurface surface;
+
+        /// <summary>
+        /// Per-texel coverage of the stroke being rasterized, over its bounding box only. Kept
+        /// between strokes and grown when one needs more, because painting must not allocate while
+        /// the user is drawing (architecture §7).
+        /// </summary>
+        /// <remarks>
+        /// A byte rather than a float: coverage ends up in an 8-bit channel anyway, and at the
+        /// budget's 1024² cap the difference is a megabyte against four (ADR 0004).
+        /// </remarks>
+        private byte[] strokeCoverage;
 
         /// <summary>The surface this canvas paints, or null while unbound.</summary>
         public IPaintableSurface Surface => surface;
@@ -255,6 +268,269 @@ namespace DecoreXR.Painting
                     texels[index] = Blend(texels[index], color, coverage);
                 }
             }
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Rasterized as the set of texels within half a width of the path, measured <em>in
+        /// metres</em> — the same distance test <see cref="FillCircle"/> uses, and round ends and
+        /// corners fall out of it for free rather than having to be special-cased at each join.
+        /// <para>
+        /// Coverage for the whole polyline is accumulated first and composited once, which is why
+        /// this takes the path rather than a segment. Compositing segment by segment would lay each
+        /// one's soft edge over the previous one's body, and a stroke would come out with a seam at
+        /// every sample. Taking the greatest coverage any segment gives a texel is what makes the
+        /// overlaps disappear.
+        /// </para>
+        /// <para>
+        /// Only the stroke's own bounding box is visited, so a short stroke on a large wall costs
+        /// what it looks like it should. As with the other operations the texels are written
+        /// CPU-side and uploaded once by <see cref="Commit"/>.
+        /// </para>
+        /// </remarks>
+        public void StrokePolyline(IReadOnlyList<Vector2> points, float width, Color32 color)
+        {
+            if (!TryRasterizeStroke(points, width, out var bounds))
+            {
+                return;
+            }
+
+            var texels = texture.GetRawTextureData<Color32>();
+            var opaque = color.a == byte.MaxValue;
+
+            for (var y = bounds.yMin; y < bounds.yMax; y++)
+            {
+                var row = y * Resolution.x;
+                var coverageRow = (y - bounds.yMin) * bounds.width;
+
+                for (var x = bounds.xMin; x < bounds.xMax; x++)
+                {
+                    var coverage = strokeCoverage[coverageRow + (x - bounds.xMin)];
+                    if (coverage == 0)
+                    {
+                        continue;
+                    }
+
+                    var index = row + x;
+
+                    if (coverage == byte.MaxValue && opaque)
+                    {
+                        texels[index] = color;
+                        continue;
+                    }
+
+                    texels[index] = Blend(texels[index], color, coverage / 255f);
+                }
+            }
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// The same geometry as <see cref="StrokePolyline"/> — deliberately the same call, so the
+        /// eraser covers exactly the ground a brush of that width would and the two cannot drift
+        /// apart. Only the compositing differs: instead of laying colour over what is there, it
+        /// takes the covered fraction of the texel's alpha away, which is ordinary source-out.
+        /// <para>
+        /// A texel erased to nothing is reset to <see cref="Unpainted"/> rather than left with its
+        /// old colour at zero alpha. The two look identical, but a stray colour riding along at
+        /// alpha 0 would come back the moment anything blended towards it.
+        /// </para>
+        /// </remarks>
+        public void ErasePolyline(IReadOnlyList<Vector2> points, float width)
+        {
+            if (!TryRasterizeStroke(points, width, out var bounds))
+            {
+                return;
+            }
+
+            var texels = texture.GetRawTextureData<Color32>();
+
+            for (var y = bounds.yMin; y < bounds.yMax; y++)
+            {
+                var row = y * Resolution.x;
+                var coverageRow = (y - bounds.yMin) * bounds.width;
+
+                for (var x = bounds.xMin; x < bounds.xMax; x++)
+                {
+                    var coverage = strokeCoverage[coverageRow + (x - bounds.xMin)];
+                    if (coverage == 0)
+                    {
+                        continue;
+                    }
+
+                    var index = row + x;
+
+                    if (coverage == byte.MaxValue)
+                    {
+                        texels[index] = Unpainted;
+                        continue;
+                    }
+
+                    // The feathered edge: what is left of this texel's paint.
+                    var kept = texels[index].a * (1f - coverage / 255f);
+                    var remaining = (byte)Mathf.RoundToInt(kept);
+
+                    texels[index] = remaining == 0
+                        ? Unpainted
+                        : new Color32(texels[index].r, texels[index].g, texels[index].b, remaining);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Fills <see cref="strokeCoverage"/> with how much of each texel a stroke of this width
+        /// along this path covers, and reports the texel box it wrote.
+        /// </summary>
+        /// <returns>
+        /// False when there is nothing to draw — no canvas, no path, no width, or a stroke that
+        /// falls entirely off this wall. Only the missing canvas is an error; the rest are ordinary
+        /// outcomes of a gesture, and a stroke near an edge is clipped by the wall rather than
+        /// refused.
+        /// </returns>
+        /// <remarks>
+        /// Split from the compositing so that what a stroke covers is decided in one place. M6's
+        /// eraser walks the same geometry and only composites it differently.
+        /// </remarks>
+        private bool TryRasterizeStroke(IReadOnlyList<Vector2> points, float width, out RectInt bounds)
+        {
+            bounds = default;
+
+            if (texture == null || surface == null)
+            {
+                Debug.LogError($"[{nameof(PaintCanvas)}] Cannot paint: no canvas is bound.", this);
+                return false;
+            }
+
+            var count = points?.Count ?? 0;
+            if (count == 0 || width <= 0f)
+            {
+                return false;
+            }
+
+            var size = surface.Size;
+            var texelWidth = Resolution.x;
+            var texelHeight = Resolution.y;
+
+            // Half a texel in metres, as in FillCircle: the band a texel takes to go from inside the
+            // stroke to outside it.
+            var feather = 0.25f * (size.x / texelWidth + size.y / texelHeight);
+            var half = 0.5f * width;
+            var reach = half + feather;
+            var inner = half - feather;
+
+            if (!TryBoundsFor(points, reach, size, out bounds))
+            {
+                return false;
+            }
+
+            var needed = bounds.width * bounds.height;
+            if (strokeCoverage == null || strokeCoverage.Length < needed)
+            {
+                strokeCoverage = new byte[needed];
+            }
+            else
+            {
+                // Only the part about to be used, so a small stroke does not pay for the largest one
+                // this canvas has drawn.
+                Array.Clear(strokeCoverage, 0, needed);
+            }
+
+            // A path of one point is a dab, which is what a tap with the brush means; running the
+            // single degenerate segment gives exactly that, with no separate case to write.
+            var segments = count == 1 ? 1 : count - 1;
+
+            for (var segment = 0; segment < segments; segment++)
+            {
+                var fromUv = points[segment];
+                var toUv = points[count == 1 ? 0 : segment + 1];
+
+                var from = new Vector2(fromUv.x * size.x, fromUv.y * size.y);
+                var to = new Vector2(toUv.x * size.x, toUv.y * size.y);
+
+                // This segment's own box, clipped to the stroke's. Visiting the whole stroke's box
+                // per segment would make a long stroke cost its length times its area.
+                var xMin = Mathf.Max(bounds.xMin, Mathf.FloorToInt((Mathf.Min(from.x, to.x) - reach) / size.x * texelWidth));
+                var xMax = Mathf.Min(bounds.xMax - 1, Mathf.CeilToInt((Mathf.Max(from.x, to.x) + reach) / size.x * texelWidth));
+                var yMin = Mathf.Max(bounds.yMin, Mathf.FloorToInt((Mathf.Min(from.y, to.y) - reach) / size.y * texelHeight));
+                var yMax = Mathf.Min(bounds.yMax - 1, Mathf.CeilToInt((Mathf.Max(from.y, to.y) + reach) / size.y * texelHeight));
+
+                for (var y = yMin; y <= yMax; y++)
+                {
+                    // Texel centres, hence the half — sampling a texel's corner would shift the whole
+                    // stroke half a texel.
+                    var py = (y + 0.5f) / texelHeight * size.y;
+                    var coverageRow = (y - bounds.yMin) * bounds.width;
+
+                    for (var x = xMin; x <= xMax; x++)
+                    {
+                        var px = (x + 0.5f) / texelWidth * size.x;
+                        var distance = DistanceToSegment(new Vector2(px, py), from, to);
+
+                        if (distance >= reach)
+                        {
+                            continue;
+                        }
+
+                        var coverage = distance <= inner
+                            ? byte.MaxValue
+                            : (byte)Mathf.RoundToInt(Mathf.InverseLerp(reach, inner, distance) * 255f);
+
+                        var index = coverageRow + (x - bounds.xMin);
+                        if (coverage > strokeCoverage[index])
+                        {
+                            strokeCoverage[index] = coverage;
+                        }
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// The texel box a stroke of this reach along this path can touch, clipped to the canvas.
+        /// Returns false when none of it lands on this wall.
+        /// </summary>
+        private bool TryBoundsFor(IReadOnlyList<Vector2> points, float reach, Vector2 size, out RectInt bounds)
+        {
+            var minUv = points[0];
+            var maxUv = minUv;
+
+            for (var i = 1; i < points.Count; i++)
+            {
+                minUv = Vector2.Min(minUv, points[i]);
+                maxUv = Vector2.Max(maxUv, points[i]);
+            }
+
+            var xMin = Mathf.Max(0, Mathf.FloorToInt((minUv.x - reach / size.x) * Resolution.x));
+            var xMax = Mathf.Min(Resolution.x - 1, Mathf.CeilToInt((maxUv.x + reach / size.x) * Resolution.x));
+            var yMin = Mathf.Max(0, Mathf.FloorToInt((minUv.y - reach / size.y) * Resolution.y));
+            var yMax = Mathf.Min(Resolution.y - 1, Mathf.CeilToInt((maxUv.y + reach / size.y) * Resolution.y));
+
+            if (xMin > xMax || yMin > yMax)
+            {
+                bounds = default;
+                return false;
+            }
+
+            bounds = new RectInt(xMin, yMin, xMax - xMin + 1, yMax - yMin + 1);
+            return true;
+        }
+
+        /// <summary>
+        /// Shortest distance from a point to a line segment, all in metres. A segment whose ends
+        /// coincide collapses to its start, which is what gives a one-point path a round dab.
+        /// </summary>
+        private static float DistanceToSegment(Vector2 point, Vector2 from, Vector2 to)
+        {
+            var along = to - from;
+            var lengthSquared = along.sqrMagnitude;
+
+            var t = lengthSquared <= 0f
+                ? 0f
+                : Mathf.Clamp01(Vector2.Dot(point - from, along) / lengthSquared);
+
+            return Vector2.Distance(point, from + t * along);
         }
 
         /// <summary>
