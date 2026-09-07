@@ -6,6 +6,7 @@
         "DecoreXR.Spatial",
         "DecoreXR.Interaction",
         "DecoreXR.Painting",
+        "Meta.XR.EnvironmentDepth",
         "UnityEngine.UI",
         "Unity.TextMeshPro"
     ],
