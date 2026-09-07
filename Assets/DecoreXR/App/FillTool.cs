@@ -16,9 +16,11 @@ namespace DecoreXR.App
     /// <c>Painting</c> is what reacts to it (ADR 0003, architecture §4). That is also why undo will
     /// work in M7 without this file changing.
     /// <para>
-    /// One serialized colour, because M3 is "solid-color fill" and nothing more. Choosing a tool and
-    /// choosing a colour arrive with the wrist palette in M5 (ADR 0009); this component's job then
-    /// becomes reading that state instead of its own field.
+    /// The palette decides both halves of what a press means (ADR 0009). The colour comes from
+    /// there rather than from a field here, read at the moment of the press so this tool needs no
+    /// notification when the choice changes and cannot hold a colour that has gone stale — and so
+    /// does whether the press was meant for this tool at all, now that a fill is one of several
+    /// things a press can be.
     /// </para>
     /// </remarks>
     [DisallowMultipleComponent]
@@ -31,25 +33,18 @@ namespace DecoreXR.App
         [Tooltip("The history a fill is recorded in. Painting redraws from it.")]
         [SerializeField] private PaintHistory history;
 
-        [Header("Paint")]
-        [Tooltip("The colour a fill paints. A single colour is all M3 has; the palette brings more " +
-                 "in M5 (ADR 0009).")]
-        [SerializeField] private Color fillColor = new Color(0.35f, 0.52f, 0.78f, 1f);
-
-        /// <summary>The colour fills are painted in.</summary>
-        public Color FillColor
-        {
-            get => fillColor;
-            set => fillColor = value;
-        }
+        [Tooltip("What the user has chosen to paint with. A fill reads the active colour from here " +
+                 "(ADR 0009).")]
+        [SerializeField] private PaletteState paletteState;
 
         private void OnEnable()
         {
-            if (selection == null || history == null)
+            if (selection == null || history == null || paletteState == null)
             {
                 Debug.LogError(
-                    $"[{nameof(FillTool)}] Needs both a {nameof(SurfaceSelection)} and a " +
-                    $"{nameof(PaintHistory)}; without them choosing a wall would do nothing. Assign " +
+                    $"[{nameof(FillTool)}] Needs a {nameof(SurfaceSelection)}, a " +
+                    $"{nameof(PaintHistory)} and a {nameof(PaletteState)}; without them choosing a " +
+                    "wall would do nothing, or would paint a colour the user never picked. Assign " +
                     "them in the inspector.", this);
                 enabled = false;
                 return;
@@ -70,10 +65,19 @@ namespace DecoreXR.App
         {
             selection = FindAnyObjectByType<SurfaceSelection>();
             history = FindAnyObjectByType<PaintHistory>();
+            paletteState = FindAnyObjectByType<PaletteState>();
         }
 
         private void OnSelectionChanged(SurfaceSelection source)
         {
+            // Choosing a wall is the same press whichever tool is chosen, so from M5 the tool has to
+            // be asked whether this press was meant for it. Without this, drawing a circle would
+            // first fill the whole wall (ADR 0009).
+            if (paletteState.ActiveTool != PaintTool.Fill)
+            {
+                return;
+            }
+
             var surface = source.Selected;
 
             // Deselecting is not a paint action. Selection also clears itself when the chosen wall
@@ -94,7 +98,7 @@ namespace DecoreXR.App
                 return;
             }
 
-            history.Push(new FillCommand(surface.Id, fillColor));
+            history.Push(new FillCommand(surface.Id, paletteState.ActiveColor));
         }
     }
 }

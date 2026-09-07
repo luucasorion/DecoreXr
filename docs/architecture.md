@@ -184,6 +184,7 @@ physical walls. All decoration actions flow through one command history and can 
 | Single global undo/redo stack in `Core` | ADR 0007 |
 | 5-assembly layout + future `Furniture` | ADR 0008 |
 | Wrist-anchored uGUI palette in `App` | ADR 0009 |
+| `PaintColorPalette` — the palette's colour set as a config asset (`App`) | ADR 0009 (the palette itself); the config-asset shape follows §8.3's precedent from ADR 0004. *Placement in `App` is an organizational choice: the swatch list is the UI's menu, not part of the paint model — a command already carries a `Color32` (ADR 0003) and needs no colour type of its own* |
 | `IPaintableSurface` + manual-plane fallback | ADR 0010 |
 | No-scene guidance panel in `App` (world-space uGUI) | ADR 0010 (guidance), ADR 0009 (uGUI) |
 | Editor/Simulator + on-device verification | ADR 0011 |

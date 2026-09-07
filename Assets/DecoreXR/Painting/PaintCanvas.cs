@@ -171,6 +171,125 @@ namespace DecoreXR.Painting
             WriteAll(color);
         }
 
+        /// <inheritdoc />
+        /// <remarks>
+        /// Rasterized by measuring each candidate texel's distance from the centre <em>in metres</em>
+        /// rather than in texels or in <c>(u,v)</c>. That is the only test that stays a circle on a
+        /// wall of any shape and at any resolution the budget picked (ADR 0004): it asks the question
+        /// the user's radius actually asked, instead of one about the texture's aspect ratio.
+        /// <para>
+        /// Only the circle's own bounding box is visited, so the cost is the area painted and not the
+        /// size of the wall. As with <see cref="FillAll"/>, the texels are written CPU-side and
+        /// uploaded once by <see cref="Commit"/>.
+        /// </para>
+        /// </remarks>
+        public void FillCircle(Vector2 center, float radius, Color32 color)
+        {
+            // Unlike a fill, a circle needs the wall's metres as well as its texels, so this asks for
+            // the surface too rather than only the texture.
+            if (texture == null || surface == null)
+            {
+                Debug.LogError($"[{nameof(PaintCanvas)}] Cannot paint: no canvas is bound.", this);
+                return;
+            }
+
+            // A circle with no radius is not a degenerate case worth reporting — it is what a size
+            // gesture reads before the user has opened it (M5-T4).
+            if (radius <= 0f)
+            {
+                return;
+            }
+
+            var size = surface.Size;
+            var width = Resolution.x;
+            var height = Resolution.y;
+
+            // Half a texel, in metres: the width of the band over which a texel goes from inside the
+            // circle to outside it. Without it the edge is a staircase, which on a shape this round
+            // is the first thing the eye finds.
+            var feather = 0.25f * (size.x / width + size.y / height);
+
+            var reach = radius + feather;
+            var xMin = Mathf.Max(0, Mathf.FloorToInt((center.x - reach / size.x) * width));
+            var xMax = Mathf.Min(width - 1, Mathf.CeilToInt((center.x + reach / size.x) * width));
+            var yMin = Mathf.Max(0, Mathf.FloorToInt((center.y - reach / size.y) * height));
+            var yMax = Mathf.Min(height - 1, Mathf.CeilToInt((center.y + reach / size.y) * height));
+
+            // Entirely off this wall. Clipped away, not an error: aiming near an edge is normal, and
+            // the wall is what the circle is cut off by.
+            if (xMin > xMax || yMin > yMax)
+            {
+                return;
+            }
+
+            var texels = texture.GetRawTextureData<Color32>();
+            var inner = radius - feather;
+
+            for (var y = yMin; y <= yMax; y++)
+            {
+                // Texel centres, hence the half: sampling from a texel's corner would shift the whole
+                // circle half a texel up and to the left.
+                var dy = ((y + 0.5f) / height - center.y) * size.y;
+                var row = y * width;
+
+                for (var x = xMin; x <= xMax; x++)
+                {
+                    var dx = ((x + 0.5f) / width - center.x) * size.x;
+                    var distance = Mathf.Sqrt(dx * dx + dy * dy);
+
+                    if (distance >= reach)
+                    {
+                        continue;
+                    }
+
+                    var index = row + x;
+
+                    if (distance <= inner)
+                    {
+                        texels[index] = color;
+                        continue;
+                    }
+
+                    // The edge ring: how much of this texel the circle covers.
+                    var coverage = Mathf.InverseLerp(reach, inner, distance);
+                    texels[index] = Blend(texels[index], color, coverage);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Lays <paramref name="source"/> over <paramref name="destination"/> at the given coverage —
+        /// ordinary source-over compositing on non-premultiplied colours.
+        /// </summary>
+        /// <remarks>
+        /// Needed only for the boundary ring, but it has to be right there: an unpainted texel is
+        /// fully transparent, and blending towards it without accounting for its alpha would ring
+        /// every circle in a dark halo of whatever colour transparent black happens to be.
+        /// </remarks>
+        private static Color32 Blend(Color32 destination, Color32 source, float coverage)
+        {
+            var sourceAlpha = source.a / 255f * Mathf.Clamp01(coverage);
+            if (sourceAlpha <= 0f)
+            {
+                return destination;
+            }
+
+            var destinationAlpha = destination.a / 255f;
+            var keptAlpha = destinationAlpha * (1f - sourceAlpha);
+            var outAlpha = sourceAlpha + keptAlpha;
+
+            if (outAlpha <= 0f)
+            {
+                return Unpainted;
+            }
+
+            return new Color32(
+                (byte)Mathf.RoundToInt((source.r * sourceAlpha + destination.r * keptAlpha) / outAlpha),
+                (byte)Mathf.RoundToInt((source.g * sourceAlpha + destination.g * keptAlpha) / outAlpha),
+                (byte)Mathf.RoundToInt((source.b * sourceAlpha + destination.b * keptAlpha) / outAlpha),
+                (byte)Mathf.RoundToInt(outAlpha * 255f));
+        }
+
         /// <summary>
         /// Uploads the texels written since the last commit and makes the quad visible. Called once
         /// at the end of a re-render.
