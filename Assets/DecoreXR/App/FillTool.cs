@@ -16,10 +16,11 @@ namespace DecoreXR.App
     /// <c>Painting</c> is what reacts to it (ADR 0003, architecture §4). That is also why undo will
     /// work in M7 without this file changing.
     /// <para>
-    /// The colour comes from the palette rather than from a field here (ADR 0009). That is what
-    /// makes a fill mean "the colour the user has chosen": this tool reads
-    /// <see cref="PaletteState"/> at the moment of the press, so it needs no notification when the
-    /// choice changes and cannot hold a colour that has gone stale.
+    /// The palette decides both halves of what a press means (ADR 0009). The colour comes from
+    /// there rather than from a field here, read at the moment of the press so this tool needs no
+    /// notification when the choice changes and cannot hold a colour that has gone stale — and so
+    /// does whether the press was meant for this tool at all, now that a fill is one of several
+    /// things a press can be.
     /// </para>
     /// </remarks>
     [DisallowMultipleComponent]
@@ -69,6 +70,14 @@ namespace DecoreXR.App
 
         private void OnSelectionChanged(SurfaceSelection source)
         {
+            // Choosing a wall is the same press whichever tool is chosen, so from M5 the tool has to
+            // be asked whether this press was meant for it. Without this, drawing a circle would
+            // first fill the whole wall (ADR 0009).
+            if (paletteState.ActiveTool != PaintTool.Fill)
+            {
+                return;
+            }
+
             var surface = source.Selected;
 
             // Deselecting is not a paint action. Selection also clears itself when the chosen wall
