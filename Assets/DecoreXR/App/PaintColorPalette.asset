@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0c1021ca741d9548b6d940f57d4149e, type: 3}
+  m_Name: PaintColorPalette
+  m_EditorClassIdentifier: DecoreXR.App::DecoreXR.App.PaintColorPalette
+  swatches:
+  - name: Chalk
+    color: {r: 0.94, g: 0.93, b: 0.89, a: 1}
+  - name: Clay
+    color: {r: 0.78, g: 0.53, b: 0.42, a: 1}
+  - name: Sage
+    color: {r: 0.55, g: 0.65, b: 0.53, a: 1}
+  - name: Denim
+    color: {r: 0.35, g: 0.52, b: 0.78, a: 1}
+  - name: Ochre
+    color: {r: 0.85, g: 0.66, b: 0.28, a: 1}
+  - name: Ink
+    color: {r: 0.16, g: 0.18, b: 0.24, a: 1}
