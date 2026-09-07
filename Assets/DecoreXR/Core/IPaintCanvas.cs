@@ -16,8 +16,8 @@ namespace DecoreXR.Core
     /// around (ADR 0006).
     /// <para>
     /// Each new tool adds the one operation it needs here. <see cref="FillAll"/> is M3's whole-wall
-    /// paint, <see cref="FillCircle"/> is M5's shape, and <see cref="StrokePolyline"/> is M6's
-    /// freehand brush.
+    /// paint, <see cref="FillCircle"/> is M5's shape, and <see cref="StrokePolyline"/> and
+    /// <see cref="ErasePolyline"/> are M6's brush and eraser.
     /// </para>
     /// </remarks>
     public interface IPaintCanvas
@@ -75,5 +75,29 @@ namespace DecoreXR.Core
         /// </para>
         /// </remarks>
         void StrokePolyline(IReadOnlyList<Vector2> points, float width, Color32 color);
+
+        /// <summary>
+        /// Takes paint back off the surface along a polyline — the eraser.
+        /// </summary>
+        /// <param name="points">
+        /// The path in the surface's normalized <c>(u,v)</c>, interpolated and capped exactly as
+        /// <see cref="StrokePolyline"/>'s is, so the eraser covers the same ground a brush of the
+        /// same width would.
+        /// </param>
+        /// <param name="width">The erased band's full width in metres. Non-positive widths erase nothing.</param>
+        /// <remarks>
+        /// Erasing removes paint, not wall: what is left behind is the surface's unpainted state,
+        /// through which passthrough shows the real wall again. It is not "paint the wall's own
+        /// colour", which nothing here knows and which would leave a patch that later paint could
+        /// not be told apart from.
+        /// <para>
+        /// A command like any other rather than a rewriting of the history, so it lands in the one
+        /// global list in the order the user did it (ADR 0007): it takes off whatever the commands
+        /// before it put down, and a command after it paints over the hole. That is also what keeps
+        /// undo able to bring the erased paint back — the erase is a thing that can be undone, not
+        /// paint that was destroyed.
+        /// </para>
+        /// </remarks>
+        void ErasePolyline(IReadOnlyList<Vector2> points, float width);
     }
 }

@@ -324,6 +324,59 @@ namespace DecoreXR.Painting
             }
         }
 
+        /// <inheritdoc />
+        /// <remarks>
+        /// The same geometry as <see cref="StrokePolyline"/> — deliberately the same call, so the
+        /// eraser covers exactly the ground a brush of that width would and the two cannot drift
+        /// apart. Only the compositing differs: instead of laying colour over what is there, it
+        /// takes the covered fraction of the texel's alpha away, which is ordinary source-out.
+        /// <para>
+        /// A texel erased to nothing is reset to <see cref="Unpainted"/> rather than left with its
+        /// old colour at zero alpha. The two look identical, but a stray colour riding along at
+        /// alpha 0 would come back the moment anything blended towards it.
+        /// </para>
+        /// </remarks>
+        public void ErasePolyline(IReadOnlyList<Vector2> points, float width)
+        {
+            if (!TryRasterizeStroke(points, width, out var bounds))
+            {
+                return;
+            }
+
+            var texels = texture.GetRawTextureData<Color32>();
+
+            for (var y = bounds.yMin; y < bounds.yMax; y++)
+            {
+                var row = y * Resolution.x;
+                var coverageRow = (y - bounds.yMin) * bounds.width;
+
+                for (var x = bounds.xMin; x < bounds.xMax; x++)
+                {
+                    var coverage = strokeCoverage[coverageRow + (x - bounds.xMin)];
+                    if (coverage == 0)
+                    {
+                        continue;
+                    }
+
+                    var index = row + x;
+
+                    if (coverage == byte.MaxValue)
+                    {
+                        texels[index] = Unpainted;
+                        continue;
+                    }
+
+                    // The feathered edge: what is left of this texel's paint.
+                    var kept = texels[index].a * (1f - coverage / 255f);
+                    var remaining = (byte)Mathf.RoundToInt(kept);
+
+                    texels[index] = remaining == 0
+                        ? Unpainted
+                        : new Color32(texels[index].r, texels[index].g, texels[index].b, remaining);
+                }
+            }
+        }
+
         /// <summary>
         /// Fills <see cref="strokeCoverage"/> with how much of each texel a stroke of this width
         /// along this path covers, and reports the texel box it wrote.

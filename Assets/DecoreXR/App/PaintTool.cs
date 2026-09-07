@@ -10,7 +10,7 @@ namespace DecoreXR.App
     /// composition in <c>App</c> is what turns a chosen tool plus a hit into the matching
     /// <c>IPaintCommand</c> (architecture §6 step 5).
     /// <para>
-    /// One entry per tool the milestone actually has. M6's eraser adds its own when M6-T2 lands.
+    /// One entry per tool the milestone actually has.
     /// </para>
     /// </remarks>
     public enum PaintTool
@@ -23,5 +23,8 @@ namespace DecoreXR.App
 
         /// <summary>Paint a freehand stroke along the path the pointer is dragged.</summary>
         Brush = 2,
+
+        /// <summary>Take paint back off along the path the pointer is dragged.</summary>
+        Eraser = 3,
     }
 }
