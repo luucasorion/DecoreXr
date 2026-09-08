@@ -188,6 +188,39 @@ namespace DecoreXR.Core
             }
         }
 
+        /// <summary>
+        /// Appends every <em>done</em> command to <paramref name="results"/>, oldest first — the
+        /// whole room, in the order the user painted it.
+        /// </summary>
+        /// <remarks>
+        /// What saving needs (ADR 0006), and the reason it is the done ones and in this order. Done,
+        /// because the file is meant to be what the walls look like, and ADR 0007 promises undo within
+        /// a session rather than across a restart — writing the undone tail down would leave a redo
+        /// button live on launch, offering to put back paint from a session the user has left. In
+        /// order, because the writer keeps each command's place in this list so that per-wall files
+        /// (ADR 0006) merge back into one global history (ADR 0007) rather than into a room grouped
+        /// by wall.
+        /// <para>
+        /// The counterpart to <see cref="CollectFor"/>, and the same shape: a caller-owned list,
+        /// cleared first, so saving reuses a buffer instead of allocating one per save.
+        /// </para>
+        /// </remarks>
+        public void CollectDone(List<IPaintCommand> results)
+        {
+            if (results == null)
+            {
+                Debug.LogError($"[{nameof(PaintHistory)}] {nameof(CollectDone)} needs a list to fill.", this);
+                return;
+            }
+
+            results.Clear();
+
+            for (var i = 0; i < doneCount; i++)
+            {
+                results.Add(commands[i]);
+            }
+        }
+
         private void OnDestroy()
         {
             // Nothing should be holding a torn-down history, and a stale subscriber re-rendering a
