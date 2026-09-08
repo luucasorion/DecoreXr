@@ -216,11 +216,17 @@ namespace DecoreXR.Spatial
                 }
             }
 
-            ReattachedCount = history.Restore(kept);
             SkippedCount = skippedCommands;
 
-            // Left on disk, not deleted: those walls belong to a room that is not this one.
+            // Marked before the history is restored, not after, and the order is the point. Loading
+            // is what lets the store start deleting the files of walls with no paint on them, and
+            // restoring raises an event synchronously — so between the two calls there would be a
+            // moment when the store considered itself loaded while nothing was yet marked as another
+            // room's. A listener that saved in that moment would delete exactly the files this call
+            // exists to protect. No listener does today; doing it in this order means none can.
             store.Retain(skippedSurfaces);
+
+            ReattachedCount = history.Restore(kept);
 
             Report();
 
