@@ -72,15 +72,14 @@ namespace DecoreXR.Core
         private bool codecsResolved;
         private bool hasLoaded;
         private bool warnedAboutDeletingBeforeLoad;
+        private bool warnedAboutFolderName;
+        private bool warnedAboutNoCodecs;
 
         /// <summary>
         /// The folder the paint files sit in. Built on demand rather than cached: on Android
         /// <see cref="Application.persistentDataPath"/> is only meaningful once the player is up.
         /// </summary>
-        public string DirectoryPath =>
-            Path.Combine(
-                Application.persistentDataPath,
-                string.IsNullOrWhiteSpace(folderName) ? DefaultFolderName : folderName.Trim());
+        public string DirectoryPath => Path.Combine(Application.persistentDataPath, ResolveFolderName());
 
         /// <summary>
         /// Whether this store has read the disk this session — which is what makes deleting a file
@@ -513,6 +512,41 @@ namespace DecoreXR.Core
             return ok;
         }
 
+        /// <summary>
+        /// The folder name to actually use, which is the configured one unless it could not be part
+        /// of a path at all.
+        /// </summary>
+        /// <remarks>
+        /// Checked here rather than trusted, because <see cref="Path.Combine"/> throws on an illegal
+        /// character and this property is read on the way into both <see cref="Save"/> and
+        /// <see cref="Load"/> — so a typo in the inspector would come out of the app as an exception
+        /// at whoever asked to save, rather than as a save that reported it could not (architecture
+        /// §8.5). Falling back to the default folder keeps the user's paint being written somewhere
+        /// while the mistake is stated plainly; the alternative is not saving at all.
+        /// </remarks>
+        private string ResolveFolderName()
+        {
+            var candidate = string.IsNullOrWhiteSpace(folderName) ? DefaultFolderName : folderName.Trim();
+
+            if (candidate.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 &&
+                candidate != "." &&
+                candidate != "..")
+            {
+                return candidate;
+            }
+
+            if (!warnedAboutFolderName)
+            {
+                warnedAboutFolderName = true;
+                Debug.LogError(
+                    $"[{nameof(PaintStore)}] '{candidate}' cannot be a folder name, so the room is " +
+                    $"being saved under '{DefaultFolderName}' instead. Fix the folder name in the " +
+                    "inspector; anything already saved under it will not be found.", this);
+            }
+
+            return DefaultFolderName;
+        }
+
         private string PathFor(string surfaceId) =>
             Path.Combine(DirectoryPath, surfaceId + FileExtension);
 
@@ -546,12 +580,16 @@ namespace DecoreXR.Core
 
         private void EnsureCodecs()
         {
-            if (codecsResolved)
+            // Both conditions, not just the flag. Unity's assembly-reload backup restores a
+            // MonoBehaviour's private fields — including this flag — but not the objects they
+            // describe, so after a recompile in the Editor the store can come back believing it is
+            // resolved with an empty registry and a null serializer. Asking whether the serializer
+            // actually exists is what makes "resolved" mean usable rather than merely attempted, and
+            // it costs nothing in a player build, where there is no reload to survive.
+            if (codecsResolved && serializer != null)
             {
                 return;
             }
-
-            codecsResolved = true;
 
             // Emptied first: re-enabling re-reads the inspector list, and re-registering a codec the
             // registry already holds is refused as a collision — so without this, a store that is
@@ -578,13 +616,23 @@ namespace DecoreXR.Core
                 }
             }
 
-            if (codecs.Count == 0)
+            // Latched only on success, so a resolve that found nothing is retried rather than
+            // remembered as the answer. Unity does not promise this component's turn comes after
+            // whatever it points at is in place, and a store that permanently believed it had no
+            // codecs would go on quietly not saving the user's room for the rest of the session
+            // (architecture §8.5).
+            codecsResolved = codecs.Count > 0;
+
+            if (codecsResolved || warnedAboutNoCodecs)
             {
-                Debug.LogError(
-                    $"[{nameof(PaintStore)}] No {nameof(IPaintCommandCodecSource)} assigned, so no " +
-                    "command type can be written or read and the user's room will not survive a " +
-                    "restart (ADR 0006). Assign one in the inspector.", this);
+                return;
             }
+
+            warnedAboutNoCodecs = true;
+            Debug.LogError(
+                $"[{nameof(PaintStore)}] No {nameof(IPaintCommandCodecSource)} resolved, so no command " +
+                "type can be written or read and the user's room would not survive a restart " +
+                "(ADR 0006). Assign one in the inspector.", this);
         }
     }
 }

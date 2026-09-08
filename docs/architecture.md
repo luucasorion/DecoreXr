@@ -87,6 +87,10 @@ physical walls. All decoration actions flow through one command history and can 
   the data-driven budget (ADR 0004), and the per-wall canvas registry keyed by anchor UUID.
 - **App** — bootstraps the scene, builds the wrist-anchored uGUI palette (ADR 0009), and wires
   Interaction → Painting → Core through their public interfaces. Owns tool/color selection state.
+  It also owns *when* things happen rather than how: saving the room is driven from the app's own
+  lifecycle — pausing, quitting, and a short delay after the last paint action — because ADR 0006
+  promises the room survives a restart, and on Quest the app is backgrounded and then reclaimed
+  with no further warning.
 - **Furniture (future)** — 3D `SpatialObject` placement/move/rotate/scale as new
   `IPaintCommand`s sharing the global stack; depends on `Core` + `Spatial`, never on `Painting`.
 
@@ -202,6 +206,7 @@ physical walls. All decoration actions flow through one command history and can 
 | Only *done* commands are persisted; the undone/redo tail is not | ADR 0006 (the file is what the walls look like) + ADR 0007; *reading of ADR 0007 rather than a statement in it: undo/redo is promised within a session, so carrying the undone tail to disk would leave a redo button live on launch offering to restore paint from a session the user has left* |
 | `PaintReattacher` in `Spatial` — matches saved anchor UUIDs against the room and restores what is here | ADR 0006 ("anchor UUID lookup in `Spatial`", and its orphaned-anchor risk), ADR 0010 (it asks `IPaintableSurfaceProvider`, so MRUK walls and fallback planes answer alike) |
 | `PaintHistory.Restore` + `HistoryRestored` — the whole history replaced in one step, announced once (`Core`) | ADR 0006 (loading), ADR 0003 + §7; *organizational choice: a run of `Push`es would make `Painting` replay a wall once per command restored onto it, so one notification per load is what keeps a reload one rasterization per wall* |
+| `PaintPersistence` in `App` — save on pause/quit and a short delay after the last paint action; load left to the reattacher | ADR 0006 (the restart promise); *placement and the choice of triggers are organizational: ADR 0006 says the room survives a restart and says nothing about a button, and Quest backgrounds then reclaims an app with no further warning, so a save that waited to be asked for would mostly not happen. No palette control for it — the app has no input module feeding uGUI, and choosing one is a cross-cutting input decision needing its own ADR (§8.1), so `Save()`/`Load()` are public and wait for it* |
 | Orphaned paint is dropped from the history but **retained** on disk (`PaintStore.Retain`, and no deletion before a load) | ADR 0006 (re-running Space Setup orphans anchors — its stated risk) + §8.5; *dropped from the history because a command whose wall is absent would be undoable paint the user has never seen; kept on disk because "no paint on this wall" and "this wall is in another room" look identical from `Core`, and erasing on that guess would lose a room the user still has* |
 | Single global undo/redo stack in `Core` | ADR 0007 |
 | `IPaintCommand.DisplayName` — the command's own short name for what it did (`Core`) | ADR 0007 (the UI "should indicate what was undone"); the command names itself rather than the UI switching on command types, for the same reason it renders itself — ADR 0003 |
