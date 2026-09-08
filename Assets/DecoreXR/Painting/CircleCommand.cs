@@ -41,6 +41,9 @@ namespace DecoreXR.Painting
         /// <inheritdoc />
         public string SurfaceId => surfaceId;
 
+        /// <inheritdoc />
+        public string DisplayName => "Circle";
+
         /// <summary>Centre of the circle in the surface's normalized <c>(u,v)</c>.</summary>
         public Vector2 Center => center;
 
