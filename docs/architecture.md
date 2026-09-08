@@ -90,7 +90,8 @@ physical walls. All decoration actions flow through one command history and can 
   `Painting` depends on `Core` (+ `IPaintableSurface` from `Spatial`); `Spatial`,
   `Interaction`, `Core` do **not** depend on `App` or `Painting`. No cyclic asmdef references.
 - **Commands as the currency.** User actions become `IPaintCommand` instances pushed onto the
-  Core stack; undo/redo pops/re-pushes and asks `Painting` to re-render only the affected wall.
+  Core stack; undo/redo moves that stack's done-mark rather than editing it, and asks `Painting`
+  to re-render only the affected wall.
 - **Surface abstraction.** `Painting` and `Interaction` consume `IPaintableSurface`; they never
   reference MRUK types directly (ADR 0010).
 - **No hidden singletons across boundaries** beyond a single explicit composition root in `App`.
@@ -125,7 +126,9 @@ physical walls. All decoration actions flow through one command history and can 
 6. `Core` pushes the command onto the global stack.
 7. `Painting` applies the command to that wall's canvas and re-renders its texture within budget.
 8. The texture displays on the anchored quad (~5mm z-offset), depth-occluded by near objects.
-9. Undo/redo pops/re-pushes on the Core stack; `Painting` re-renders the affected wall.
+9. Undo/redo moves the done-mark along the Core stack (undone commands are kept, not deleted);
+   `Painting` re-renders the affected wall, and `App` names what was undone — including when it
+   happened on a wall the user is not looking at (ADR 0007).
 10. On save, `Core` serializes each wall's command list to JSON keyed by anchor UUID; on load,
     it restores them, skipping any anchor that no longer exists (clean fail).
 
@@ -182,6 +185,8 @@ physical walls. All decoration actions flow through one command history and can 
 | `EnvironmentOcclusion` in `App` — occlusion on/off + quality from the budget | ADR 0005, ADR 0004/0012 (config-driven), *placement in `App` is an organizational choice: it switches global render state and keeps the depth SDK out of `Painting`* |
 | JSON persistence keyed by anchor UUID in `Core` | ADR 0006 |
 | Single global undo/redo stack in `Core` | ADR 0007 |
+| `IPaintCommand.DisplayName` — the command's own short name for what it did (`Core`) | ADR 0007 (the UI "should indicate what was undone"); the command names itself rather than the UI switching on command types, for the same reason it renders itself — ADR 0003 |
+| Undo/redo controls on the wrist palette + the what-was-undone banner in `App` | ADR 0007 (one global stack, and the risk it accepts that undo jumps to another wall), ADR 0009 (the palette they sit on) |
 | 5-assembly layout + future `Furniture` | ADR 0008 |
 | Wrist-anchored uGUI palette in `App` | ADR 0009 |
 | `PaintColorPalette` — the palette's colour set as a config asset (`App`) | ADR 0009 (the palette itself); the config-asset shape follows §8.3's precedent from ADR 0004. *Placement in `App` is an organizational choice: the swatch list is the UI's menu, not part of the paint model — a command already carries a `Color32` (ADR 0003) and needs no colour type of its own* |

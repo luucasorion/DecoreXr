@@ -60,6 +60,9 @@ namespace DecoreXR.Painting
         /// <inheritdoc />
         public string SurfaceId => surfaceId;
 
+        /// <inheritdoc />
+        public string DisplayName => "Brush stroke";
+
         /// <summary>The stroke's path in the surface's normalized <c>(u,v)</c>, in drawn order.</summary>
         public IReadOnlyList<Vector2> Points => points;
 

@@ -55,6 +55,9 @@ namespace DecoreXR.Painting
         /// <inheritdoc />
         public string SurfaceId => surfaceId;
 
+        /// <inheritdoc />
+        public string DisplayName => "Erase";
+
         /// <summary>The erased path in the surface's normalized <c>(u,v)</c>, in drawn order.</summary>
         public IReadOnlyList<Vector2> Points => points;
 

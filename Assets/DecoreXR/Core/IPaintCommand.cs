@@ -32,6 +32,24 @@ namespace DecoreXR.Core
         string SurfaceId { get; }
 
         /// <summary>
+        /// A short name for what this command did, in the user's words — "Fill", "Circle",
+        /// "Brush stroke", "Erase". What undo tells them has just gone (ADR 0007).
+        /// </summary>
+        /// <remarks>
+        /// The command names itself for the same reason it draws itself: so that adding a tool is
+        /// adding a command type and nothing else (ADR 0003). A palette that switched on concrete
+        /// command types to caption an undo would be exactly the renderer ADR 0003 rules out, one
+        /// layer up — and <c>App</c> would have to be revisited for every tool that arrives after
+        /// the MVP.
+        /// <para>
+        /// A name, not a sentence: the UI decides whether it reads "Undid Fill" or "Fill undone",
+        /// and this says nothing about which wall — the surface is already
+        /// <see cref="SurfaceId"/>'s to answer.
+        /// </para>
+        /// </remarks>
+        string DisplayName { get; }
+
+        /// <summary>
         /// Draws this command onto one surface's canvas. Called while re-rendering that surface, in
         /// the order the commands were pushed, so later commands paint over earlier ones.
         /// </summary>

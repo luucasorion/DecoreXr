@@ -27,6 +27,9 @@ namespace DecoreXR.Painting
         /// <inheritdoc />
         public string SurfaceId => surfaceId;
 
+        /// <inheritdoc />
+        public string DisplayName => "Fill";
+
         /// <summary>The colour this command paints the surface.</summary>
         public Color32 FillColor => fillColor;
 
