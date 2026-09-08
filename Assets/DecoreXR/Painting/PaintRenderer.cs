@@ -7,19 +7,21 @@ namespace DecoreXR.Painting
 {
     /// <summary>
     /// Keeps the canvases showing what the command history says. It watches
-    /// <see cref="PaintHistory"/>, and when a command lands it re-renders the one surface that
-    /// command names — never the whole room (architecture §4).
+    /// <see cref="PaintHistory"/>, and when a command is done, undone or redone it re-renders the one
+    /// surface that command names — never the whole room (architecture §4, ADR 0007).
     /// </summary>
     /// <remarks>
     /// A re-render replays that surface's commands from scratch onto a cleared canvas rather than
-    /// drawing the new command on top of what was already there. Both give the same picture today,
-    /// but only the replay keeps the history as the actual source of truth (ADR 0003): it is the same
-    /// path M7's undo needs, where the last command has to disappear, and the same path M8 needs when
-    /// paint is reloaded from disk with no canvas to draw on top of.
+    /// drawing the new command on top of what was already there. Both give the same picture when
+    /// paint is only ever added, but only the replay keeps the history as the actual source of truth
+    /// (ADR 0003) — and it is what lets undo cost nothing extra here: a command going away is the
+    /// same replay as one arriving, just of a shorter list. It is also the path M8 needs when paint
+    /// is reloaded from disk with no canvas to draw on top of.
     /// <para>
-    /// A canvas is created the first time a surface is painted, so an untouched wall costs nothing —
-    /// no texture, and no transparent quad adding fill rate to a budget shared with passthrough
-    /// (ADR 0004).
+    /// A canvas is created the first time a surface is painted and destroyed again when the last of
+    /// its paint is undone, so a wall that is bare — never painted, or painted and taken back —
+    /// costs nothing: no texture, and no transparent quad adding fill rate to a budget shared with
+    /// passthrough (ADR 0004).
     /// </para>
     /// </remarks>
     [DisallowMultipleComponent]
@@ -66,14 +68,21 @@ namespace DecoreXR.Painting
             }
 
             ResolveProviders();
-            history.CommandPushed += OnCommandPushed;
+
+            // All three mean the same thing to a renderer — one surface's command list is no longer
+            // what is on its canvas. Which way it changed is the palette's business, not this one's.
+            history.CommandPushed += OnSurfaceCommandsChanged;
+            history.CommandUndone += OnSurfaceCommandsChanged;
+            history.CommandRedone += OnSurfaceCommandsChanged;
         }
 
         private void OnDisable()
         {
             if (history != null)
             {
-                history.CommandPushed -= OnCommandPushed;
+                history.CommandPushed -= OnSurfaceCommandsChanged;
+                history.CommandUndone -= OnSurfaceCommandsChanged;
+                history.CommandRedone -= OnSurfaceCommandsChanged;
             }
 
             for (var i = 0; i < providers.Count; i++)
@@ -116,8 +125,8 @@ namespace DecoreXR.Painting
         }
 
         /// <summary>
-        /// Re-renders one surface from its commands. Public because undo/redo needs exactly this and
-        /// nothing more (ADR 0007, M7).
+        /// Re-renders one surface from its currently done commands. Public because undo/redo needs
+        /// exactly this and nothing more (ADR 0007).
         /// </summary>
         public void Redraw(string surfaceId)
         {
@@ -126,13 +135,22 @@ namespace DecoreXR.Painting
                 return;
             }
 
+            // Collected before any canvas is asked for: a surface with nothing on it needs no canvas,
+            // and asking for one would both allocate a texture for a bare wall and complain about a
+            // missing surface there is nothing to draw on anyway.
+            history.CollectFor(surfaceId, replay);
+
+            if (replay.Count == 0)
+            {
+                DiscardCanvas(surfaceId);
+                return;
+            }
+
             var canvas = GetOrCreateCanvas(surfaceId);
             if (canvas == null)
             {
                 return;
             }
-
-            history.CollectFor(surfaceId, replay);
 
             canvas.Clear();
             for (var i = 0; i < replay.Count; i++)
@@ -144,9 +162,34 @@ namespace DecoreXR.Painting
             canvas.Commit();
         }
 
-        private void OnCommandPushed(IPaintCommand command)
+        private void OnSurfaceCommandsChanged(IPaintCommand command)
         {
             Redraw(command.SurfaceId);
+        }
+
+        /// <summary>
+        /// Drops the canvas of a surface that has no paint left on it — undone back to the bare wall.
+        /// </summary>
+        /// <remarks>
+        /// Rather than leaving a cleared one in place: a fully transparent quad still costs fill rate
+        /// on every frame against a budget shared with passthrough (ADR 0004), and it would make a
+        /// wall the user has taken all their paint off cost more than one they never touched. Redoing
+        /// builds a fresh canvas, which is a texture allocation on a button press rather than in a
+        /// frame loop (architecture §7).
+        /// </remarks>
+        private void DiscardCanvas(string surfaceId)
+        {
+            if (!canvases.TryGetValue(surfaceId, out var canvas))
+            {
+                return;
+            }
+
+            if (canvas != null)
+            {
+                Destroy(canvas.gameObject);
+            }
+
+            canvases.Remove(surfaceId);
         }
 
         /// <summary>
