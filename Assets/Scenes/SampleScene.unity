@@ -2036,6 +2036,103 @@ MonoBehaviour:
   gesture: {fileID: 1259841226}
   history: {fileID: 197171260}
   paletteState: {fileID: 57095522}
+--- !u!1 &586954631
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 586954632}
+  - component: {fileID: 586954636}
+  - component: {fileID: 586954635}
+  - component: {fileID: 586954634}
+  - component: {fileID: 586954633}
+  m_Layer: 0
+  m_Name: Persistence
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &586954632
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 586954631}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1375388207}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &586954633
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 586954631}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ded8772dfd3fcba543530e7690a3251, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DecoreXR.App::DecoreXR.App.PaintPersistence
+  store: {fileID: 586954635}
+  history: {fileID: 197171260}
+  reattacher: {fileID: 586954634}
+  autosaveAfterPainting: 1
+  autosaveDelaySeconds: 5
+--- !u!114 &586954634
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 586954631}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 404593b9ca59a96a02a6740b6ca905c8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DecoreXR.Spatial::DecoreXR.Spatial.PaintReattacher
+  store: {fileID: 586954635}
+  history: {fileID: 197171260}
+  surfaceProviders:
+  - {fileID: 330705519}
+  - {fileID: 330705520}
+  loadWhenSurfacesAppear: 1
+--- !u!114 &586954635
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 586954631}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b7a6d32a422a1868c4ca9230b8a7179, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DecoreXR.Core::DecoreXR.Core.PaintStore
+  codecSources:
+  - {fileID: 586954636}
+  folderName: paint
+--- !u!114 &586954636
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 586954631}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2682aa78780dc42460dacafa331a9492, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DecoreXR.Painting::DecoreXR.Painting.PaintCommandCodecs
 --- !u!1 &631611145
 GameObject:
   m_ObjectHideFlags: 0
@@ -3940,6 +4037,7 @@ Transform:
   - {fileID: 489260497}
   - {fileID: 1533949288}
   - {fileID: 123744385}
+  - {fileID: 586954632}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1375388208

@@ -60,9 +60,17 @@ physical walls. All decoration actions flow through one command history and can 
 - **Core** — defines `IPaintCommand`, the single global undo/redo stack (ADR 0007), the
   serializer that reads/writes command lists as JSON keyed by anchor UUID (ADR 0006), and
   shared interfaces/value types (e.g. wall-local `(u,v)`). Knows nothing about MRUK or UI.
+  It writes and reads the files but does not decide which saved walls are in the room — that
+  needs anchors, so it belongs to `Spatial` (ADR 0006's own note). Two consequences of the split
+  live here: the store removes no file until something has loaded, since before that a wall with
+  no paint is indistinguishable from one nobody has looked for; and a wall the loader reports as
+  absent is *retained*, so saving the room the user is in never erases a room they are not.
 - **Spatial** — wraps MRUK: requests scene permission, loads walls as `MRUKAnchor`, exposes
   them (and manual fallback planes) as `IPaintableSurface` with its plane, rectangle and `(u,v)`
   mapping, and resolves anchor UUIDs. The only assembly that references Meta scene APIs.
+  Because resolving a UUID is its job, it is also where saved paint is matched back onto the room:
+  `PaintReattacher` reads through `Core`'s store, restores the commands whose anchors this room
+  has, and reports the rest as belonging to a room that is not here (ADR 0006).
 - **Interaction** — provides `IPointerSource` implementations for controller ray and hand
   pinch (ADR 0002) with pen-down/up events, intersects a pointer ray with the `IPaintableSurface`
   plane + rectangle, and turns the nearest hit into a selected surface and a `(u,v)`. Hit-testing
@@ -79,6 +87,10 @@ physical walls. All decoration actions flow through one command history and can 
   the data-driven budget (ADR 0004), and the per-wall canvas registry keyed by anchor UUID.
 - **App** — bootstraps the scene, builds the wrist-anchored uGUI palette (ADR 0009), and wires
   Interaction → Painting → Core through their public interfaces. Owns tool/color selection state.
+  It also owns *when* things happen rather than how: saving the room is driven from the app's own
+  lifecycle — pausing, quitting, and a short delay after the last paint action — because ADR 0006
+  promises the room survives a restart, and on Quest the app is backgrounded and then reclaimed
+  with no further warning.
 - **Furniture (future)** — 3D `SpatialObject` placement/move/rotate/scale as new
   `IPaintCommand`s sharing the global stack; depends on `Core` + `Spatial`, never on `Painting`.
 
@@ -129,8 +141,12 @@ physical walls. All decoration actions flow through one command history and can 
 9. Undo/redo moves the done-mark along the Core stack (undone commands are kept, not deleted);
    `Painting` re-renders the affected wall, and `App` names what was undone — including when it
    happened on a wall the user is not looking at (ADR 0007).
-10. On save, `Core` serializes each wall's command list to JSON keyed by anchor UUID; on load,
-    it restores them, skipping any anchor that no longer exists (clean fail).
+10. On save, `Core` serializes each wall's command list to JSON keyed by anchor UUID.
+11. On load, `Spatial` reads those files back and keeps the commands whose anchor this room has,
+    restoring them into the history in the order they were originally painted; `Painting` redraws
+    each of those walls once. Commands whose anchor is missing are not restored and their files are
+    left untouched, so paint belonging to another room is neither shown nor destroyed (clean fail —
+    ADR 0006, §8.5).
 
 ---
 
@@ -184,6 +200,14 @@ physical walls. All decoration actions flow through one command history and can 
 | `com.unity.xr.meta-openxr` as the depth *provider* under the OpenXR runtime | ADR 0017 (provider package), ADR 0005 (the occlusion decision), ADR 0016 (the runtime it must not reverse) |
 | `EnvironmentOcclusion` in `App` — occlusion on/off + quality from the budget | ADR 0005, ADR 0004/0012 (config-driven), *placement in `App` is an organizational choice: it switches global render state and keeps the depth SDK out of `Painting`* |
 | JSON persistence keyed by anchor UUID in `Core` | ADR 0006 |
+| `PaintStore` — one JSON file per anchor UUID under `persistentDataPath` (`Core`) | ADR 0006 (the decision, and the UUID as the key); *a file per wall rather than one for the room is an organizational choice: the filename is the most direct way to be keyed by the UUID, a wall rewrites only its own file, and a corrupt file costs that wall instead of the room* |
+| `IPaintCommandCodec` / `IPaintCommandCodecSource` / `PaintCommandCodecRegistry` in `Core`, with the codecs themselves in `Painting` | ADR 0006 (serialization lives in `Core`), ADR 0003 (a tool is a command type), ADR 0008/§4 (`Core` cannot name `Painting`'s types); *the seam is an organizational choice, the same inversion `IPaintCanvas` is: a command type is persisted by a codec that ships beside it, so adding a tool adds a command type and a codec and touches nothing in `Core`* |
+| `SavedCommand.Order` — each command's place in the global history, written into its wall's file | ADR 0006 (per-wall files) + ADR 0007 (one global stack); *the two only reconcile if a per-wall entry says where it sat globally, so N files merge back into one ordered history on load rather than into a room grouped by wall* |
+| Only *done* commands are persisted; the undone/redo tail is not | ADR 0006 (the file is what the walls look like) + ADR 0007; *reading of ADR 0007 rather than a statement in it: undo/redo is promised within a session, so carrying the undone tail to disk would leave a redo button live on launch offering to restore paint from a session the user has left* |
+| `PaintReattacher` in `Spatial` — matches saved anchor UUIDs against the room and restores what is here | ADR 0006 ("anchor UUID lookup in `Spatial`", and its orphaned-anchor risk), ADR 0010 (it asks `IPaintableSurfaceProvider`, so MRUK walls and fallback planes answer alike) |
+| `PaintHistory.Restore` + `HistoryRestored` — the whole history replaced in one step, announced once (`Core`) | ADR 0006 (loading), ADR 0003 + §7; *organizational choice: a run of `Push`es would make `Painting` replay a wall once per command restored onto it, so one notification per load is what keeps a reload one rasterization per wall* |
+| `PaintPersistence` in `App` — save on pause/quit and a short delay after the last paint action; load left to the reattacher | ADR 0006 (the restart promise); *placement and the choice of triggers are organizational: ADR 0006 says the room survives a restart and says nothing about a button, and Quest backgrounds then reclaims an app with no further warning, so a save that waited to be asked for would mostly not happen. No palette control for it — the app has no input module feeding uGUI, and choosing one is a cross-cutting input decision needing its own ADR (§8.1), so `Save()`/`Load()` are public and wait for it* |
+| Orphaned paint is dropped from the history but **retained** on disk (`PaintStore.Retain`, and no deletion before a load) | ADR 0006 (re-running Space Setup orphans anchors — its stated risk) + §8.5; *dropped from the history because a command whose wall is absent would be undoable paint the user has never seen; kept on disk because "no paint on this wall" and "this wall is in another room" look identical from `Core`, and erasing on that guess would lose a room the user still has* |
 | Single global undo/redo stack in `Core` | ADR 0007 |
 | `IPaintCommand.DisplayName` — the command's own short name for what it did (`Core`) | ADR 0007 (the UI "should indicate what was undone"); the command names itself rather than the UI switching on command types, for the same reason it renders itself — ADR 0003 |
 | Undo/redo controls on the wrist palette + the what-was-undone banner in `App` | ADR 0007 (one global stack, and the risk it accepts that undo jumps to another wall), ADR 0009 (the palette they sit on) |

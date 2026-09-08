@@ -68,6 +68,18 @@ namespace DecoreXR.Core
         public event Action<IPaintCommand> CommandRedone;
 
         /// <summary>
+        /// Raised after <see cref="Restore"/> has replaced the whole history — a room read back off
+        /// disk (ADR 0006).
+        /// </summary>
+        /// <remarks>
+        /// Carries nothing, unlike the three above. They each name the one surface that changed, which
+        /// is what lets a listener re-render only that wall; a restore changes every wall at once and
+        /// has no single answer, so a listener asks <see cref="CollectSurfaceIds"/> which walls the
+        /// history now covers rather than being handed a list it could hold on to.
+        /// </remarks>
+        public event Action HistoryRestored;
+
+        /// <summary>
         /// Records a command as done. Rejects a null command, or one that names no surface, with an
         /// error rather than storing it: such a command can never be rendered or re-attached on load,
         /// so keeping it would turn a wiring mistake into paint that silently never appears
@@ -188,6 +200,141 @@ namespace DecoreXR.Core
             }
         }
 
+        /// <summary>
+        /// Appends every <em>done</em> command to <paramref name="results"/>, oldest first — the
+        /// whole room, in the order the user painted it.
+        /// </summary>
+        /// <remarks>
+        /// What saving needs (ADR 0006), and the reason it is the done ones and in this order. Done,
+        /// because the file is meant to be what the walls look like, and ADR 0007 promises undo within
+        /// a session rather than across a restart — writing the undone tail down would leave a redo
+        /// button live on launch, offering to put back paint from a session the user has left. In
+        /// order, because the writer keeps each command's place in this list so that per-wall files
+        /// (ADR 0006) merge back into one global history (ADR 0007) rather than into a room grouped
+        /// by wall.
+        /// <para>
+        /// The counterpart to <see cref="CollectFor"/>, and the same shape: a caller-owned list,
+        /// cleared first, so saving reuses a buffer instead of allocating one per save.
+        /// </para>
+        /// </remarks>
+        public void CollectDone(List<IPaintCommand> results)
+        {
+            if (results == null)
+            {
+                Debug.LogError($"[{nameof(PaintHistory)}] {nameof(CollectDone)} needs a list to fill.", this);
+                return;
+            }
+
+            results.Clear();
+
+            for (var i = 0; i < doneCount; i++)
+            {
+                results.Add(commands[i]);
+            }
+        }
+
+        /// <summary>
+        /// Appends the distinct surfaces the <em>done</em> commands paint, in the order each was
+        /// first painted — the walls that currently have something on them.
+        /// </summary>
+        /// <remarks>
+        /// What a listener asks after <see cref="HistoryRestored"/>: which walls to draw. Distinct,
+        /// because re-rendering a wall replays all of its commands at once, so a wall with forty
+        /// commands on it is one redraw and not forty.
+        /// <para>
+        /// A caller-owned list, cleared first, like <see cref="CollectFor"/> and
+        /// <see cref="CollectDone"/>. Linear in the history and quadratic in the number of walls,
+        /// which is the right way round: a room has a handful of walls and a session has thousands of
+        /// commands, and a set would allocate on every call to avoid a scan of six strings.
+        /// </para>
+        /// </remarks>
+        public void CollectSurfaceIds(List<string> results)
+        {
+            if (results == null)
+            {
+                Debug.LogError($"[{nameof(PaintHistory)}] {nameof(CollectSurfaceIds)} needs a list to fill.", this);
+                return;
+            }
+
+            results.Clear();
+
+            for (var i = 0; i < doneCount; i++)
+            {
+                var surfaceId = commands[i].SurfaceId;
+                if (string.IsNullOrEmpty(surfaceId) || results.Contains(surfaceId))
+                {
+                    continue;
+                }
+
+                results.Add(surfaceId);
+            }
+        }
+
+        /// <summary>
+        /// Replaces the whole history with a list read back off disk, all of it done, and says so
+        /// once (ADR 0006).
+        /// </summary>
+        /// <remarks>
+        /// Not a loop of <see cref="Push"/> calls, and the difference is not cosmetic. Every push
+        /// raises <see cref="CommandPushed"/>, and a listener answers that by replaying the named
+        /// wall's commands onto a cleared canvas — so restoring forty commands on one wall by pushing
+        /// them would rasterize that wall forty times, thirty-nine of them into a picture nobody sees.
+        /// One notification for the whole list means one redraw per wall (architecture §7).
+        /// <para>
+        /// It replaces rather than appends, because that is what loading a room means: the file is the
+        /// room, not an addition to whatever is already on the walls. Anything undone is dropped with
+        /// it — a restore is a new starting point, so there is nothing behind it to redo.
+        /// </para>
+        /// <para>
+        /// Commands are vetted exactly as <see cref="Push"/> vets them: one that is null or names no
+        /// surface can never be rendered or re-attached, so it is refused rather than stored
+        /// (architecture §8.5). A file that has lost a command that way is still worth restoring the
+        /// rest of.
+        /// </para>
+        /// </remarks>
+        /// <returns>How many commands the history now holds.</returns>
+        public int Restore(IReadOnlyList<IPaintCommand> restored)
+        {
+            commands.Clear();
+            doneCount = 0;
+
+            var count = restored?.Count ?? 0;
+            var refused = 0;
+
+            for (var i = 0; i < count; i++)
+            {
+                var command = restored[i];
+
+                if (command == null)
+                {
+                    refused++;
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(command.SurfaceId))
+                {
+                    Debug.LogError(
+                        $"[{nameof(PaintHistory)}] Refused a restored {command.GetType().Name} with no " +
+                        $"{nameof(IPaintCommand.SurfaceId)}: there is no surface to render it on.", this);
+                    refused++;
+                    continue;
+                }
+
+                commands.Add(command);
+            }
+
+            if (refused > 0)
+            {
+                Debug.LogError(
+                    $"[{nameof(PaintHistory)}] Dropped {refused} of {count} restored commands; the rest " +
+                    "were kept.", this);
+            }
+
+            doneCount = commands.Count;
+            HistoryRestored?.Invoke();
+            return doneCount;
+        }
+
         private void OnDestroy()
         {
             // Nothing should be holding a torn-down history, and a stale subscriber re-rendering a
@@ -195,6 +342,7 @@ namespace DecoreXR.Core
             CommandPushed = null;
             CommandUndone = null;
             CommandRedone = null;
+            HistoryRestored = null;
             commands.Clear();
             doneCount = 0;
         }
