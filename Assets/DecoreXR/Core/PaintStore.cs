@@ -23,10 +23,18 @@ namespace DecoreXR.Core
     /// already left.
     /// </para>
     /// <para>
-    /// This class saves and loads text. It does not touch <see cref="PaintHistory"/> on the way in —
-    /// putting loaded paint back on walls has to know which walls are actually in the room, which is
-    /// <c>Spatial</c>'s to answer and M8-T2's to do. Keeping the two apart is also what lets the
-    /// store be exercised with no room scanned at all.
+    /// A wall with no paint on it loses its file, which is how a user who undoes a wall back to bare
+    /// has that stick. A wall whose <em>anchor</em> is not in the current room looks identical from
+    /// here and must not be treated the same, so whoever loads marks those with <see cref="Retain"/>
+    /// and their files are left exactly as they are — otherwise launching the app in one room would
+    /// erase another (ADR 0006 names orphaned anchors as its risk; erasing them is not the clean fail
+    /// architecture §8.5 asks for).
+    /// </para>
+    /// <para>
+    /// This class saves and loads text. It does not put loaded paint back on walls — that has to know
+    /// which walls are actually in the room, which is <c>Spatial</c>'s to answer and
+    /// <c>PaintReattacher</c>'s to do. Keeping the two apart is also what lets the store be exercised
+    /// with no room scanned at all.
     /// </para>
     /// </remarks>
     [DisallowMultipleComponent]
@@ -58,9 +66,12 @@ namespace DecoreXR.Core
         private readonly Dictionary<string, List<SavedCommand>> bySurface =
             new Dictionary<string, List<SavedCommand>>(StringComparer.Ordinal);
         private readonly List<SavedCommand> fromFile = new List<SavedCommand>();
+        private readonly HashSet<string> retained = new HashSet<string>(StringComparer.Ordinal);
 
         private PaintCommandSerializer serializer;
         private bool codecsResolved;
+        private bool hasLoaded;
+        private bool warnedAboutDeletingBeforeLoad;
 
         /// <summary>
         /// The folder the paint files sit in. Built on demand rather than cached: on Android
@@ -70,6 +81,17 @@ namespace DecoreXR.Core
             Path.Combine(
                 Application.persistentDataPath,
                 string.IsNullOrWhiteSpace(folderName) ? DefaultFolderName : folderName.Trim());
+
+        /// <summary>
+        /// Whether this store has read the disk this session — which is what makes deleting a file
+        /// safe.
+        /// </summary>
+        /// <remarks>
+        /// Until a load has happened, "this wall has no paint in the history" and "nobody has looked
+        /// at what is saved yet" are the same observation from in here, and only one of them means the
+        /// file should go. So <see cref="Save"/> writes but removes nothing until then.
+        /// </remarks>
+        public bool HasLoaded => hasLoaded;
 
         /// <summary>How many command types this store can read and write.</summary>
         public int CodecCount
@@ -208,6 +230,15 @@ namespace DecoreXR.Core
 
             into.Clear();
 
+            // Each load re-decides which walls are orphaned, so the previous load's answer is not
+            // inherited (see Retain).
+            retained.Clear();
+
+            // Set before the early returns below: a first launch with nothing saved is still a session
+            // that has looked, and a wall painted and then undone in it should lose the file it just
+            // got (see HasLoaded).
+            hasLoaded = true;
+
             if (codecs.Count == 0)
             {
                 Debug.LogError(
@@ -282,6 +313,47 @@ namespace DecoreXR.Core
             into.Sort(CompareByOrder);
             return ok;
         }
+
+        /// <summary>
+        /// Marks walls whose saved paint is on disk but not in the history, so that saving does not
+        /// delete their files.
+        /// </summary>
+        /// <remarks>
+        /// This is what stops the app from destroying a room the user is not standing in. Saving
+        /// removes the file of any wall with no paint on it, which is right for a wall the user undid
+        /// back to bare — but a wall whose anchor is simply not in the current room has no paint in
+        /// the history for exactly the opposite reason, and looks identical from here. A user with two
+        /// rooms saved would otherwise lose the first one by launching the app in the second
+        /// (ADR 0006 names orphaned anchors as its risk; erasing them is not the clean fail
+        /// architecture §8.5 asks for).
+        /// <para>
+        /// Whoever loads decides, because deciding needs to know which anchors the room actually has
+        /// and <c>Core</c> cannot ask (architecture §4). <see cref="Load"/> clears the marks first, so
+        /// each load re-decides rather than inheriting the last one's answer.
+        /// </para>
+        /// </remarks>
+        public void Retain(IReadOnlyList<string> surfaceIds)
+        {
+            if (surfaceIds == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < surfaceIds.Count; i++)
+            {
+                if (!string.IsNullOrEmpty(surfaceIds[i]))
+                {
+                    retained.Add(surfaceIds[i]);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether saving will leave <paramref name="surfaceId"/>'s file alone even with no paint on
+        /// it in the history.
+        /// </summary>
+        public bool IsRetained(string surfaceId) =>
+            !string.IsNullOrEmpty(surfaceId) && retained.Contains(surfaceId);
 
         /// <summary>
         /// Buckets the history's done commands by wall, remembering each one's place in the global
@@ -375,6 +447,26 @@ namespace DecoreXR.Core
         /// </summary>
         private bool DeleteFilesForUnpaintedSurfaces(string directory)
         {
+            // Nothing is removed before a load, and this is the guard that makes Retain trustworthy
+            // rather than merely usually-applied. Retain can only mark a wall as another room's once
+            // somebody has read the disk and matched it against this room; asked to save before that,
+            // every saved wall looks like a bare one and the rule below would delete the lot. Writing
+            // is always safe, so a save that cannot tidy up still saves (ADR 0006, architecture §8.5).
+            if (!hasLoaded)
+            {
+                if (!warnedAboutDeletingBeforeLoad)
+                {
+                    warnedAboutDeletingBeforeLoad = true;
+                    Debug.LogWarning(
+                        $"[{nameof(PaintStore)}] Saved without having loaded first, so no saved wall " +
+                        "was removed. Until the saved rooms have been read, a wall with no paint on it " +
+                        "cannot be told apart from one belonging to a room that is not here, and " +
+                        "deleting it would lose the user's paint.", this);
+                }
+
+                return true;
+            }
+
             string[] files;
             try
             {
@@ -394,6 +486,13 @@ namespace DecoreXR.Core
             {
                 var surfaceId = Path.GetFileNameWithoutExtension(files[i]);
                 if (bySurface.ContainsKey(surfaceId))
+                {
+                    continue;
+                }
+
+                // Painted, but on a wall that is not in this room. That file is another room's and
+                // stays exactly as it is (see Retain).
+                if (retained.Contains(surfaceId))
                 {
                     continue;
                 }

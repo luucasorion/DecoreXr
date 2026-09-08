@@ -49,6 +49,8 @@ namespace DecoreXR.Painting
         private readonly List<IPaintableSurfaceProvider> providers = new List<IPaintableSurfaceProvider>();
         private readonly List<IPaintCommand> replay = new List<IPaintCommand>();
         private readonly List<string> pruned = new List<string>();
+        private readonly List<string> restoredSurfaces = new List<string>();
+        private readonly List<string> toRedraw = new List<string>();
 
         // Surfaces already reported as missing. A wall that is not in the room is re-checked on every
         // command pushed against it, and from M6 that is many commands a second — the situation is
@@ -74,6 +76,10 @@ namespace DecoreXR.Painting
             history.CommandPushed += OnSurfaceCommandsChanged;
             history.CommandUndone += OnSurfaceCommandsChanged;
             history.CommandRedone += OnSurfaceCommandsChanged;
+
+            // A restore is the one change that does not name a surface, because it changes all of
+            // them at once (ADR 0006).
+            history.HistoryRestored += OnHistoryRestored;
         }
 
         private void OnDisable()
@@ -83,6 +89,7 @@ namespace DecoreXR.Painting
                 history.CommandPushed -= OnSurfaceCommandsChanged;
                 history.CommandUndone -= OnSurfaceCommandsChanged;
                 history.CommandRedone -= OnSurfaceCommandsChanged;
+                history.HistoryRestored -= OnHistoryRestored;
             }
 
             for (var i = 0; i < providers.Count; i++)
@@ -165,6 +172,49 @@ namespace DecoreXR.Painting
         private void OnSurfaceCommandsChanged(IPaintCommand command)
         {
             Redraw(command.SurfaceId);
+        }
+
+        /// <summary>
+        /// Redraws the room after the history has been replaced wholesale — paint read back off disk
+        /// (ADR 0006).
+        /// </summary>
+        /// <remarks>
+        /// Two sets of walls need attention, and missing either leaves the room wrong. The walls the
+        /// restored history paints, obviously. But also the walls this renderer already has a canvas
+        /// for: the restore may have given them different paint or none at all, and a canvas nobody
+        /// redraws goes on showing paint that is no longer in the history — which is exactly the
+        /// "canvases are a render of the commands" invariant ADR 0003 rests on.
+        /// <para>
+        /// Each wall is redrawn once, however many commands it got back. That is the whole reason a
+        /// restore is one notification rather than a run of pushes (see <c>PaintHistory.Restore</c>):
+        /// replaying a wall is a full rasterization of its canvas, and doing it per command would cost
+        /// forty of them to draw a wall painted forty times (architecture §7).
+        /// </para>
+        /// </remarks>
+        private void OnHistoryRestored()
+        {
+            history.CollectSurfaceIds(restoredSurfaces);
+
+            // Collected into a list first because Redraw adds and removes canvases, so the dictionary
+            // cannot be walked while it runs.
+            toRedraw.Clear();
+            toRedraw.AddRange(restoredSurfaces);
+
+            foreach (var surfaceId in canvases.Keys)
+            {
+                if (!toRedraw.Contains(surfaceId))
+                {
+                    toRedraw.Add(surfaceId);
+                }
+            }
+
+            for (var i = 0; i < toRedraw.Count; i++)
+            {
+                Redraw(toRedraw[i]);
+            }
+
+            toRedraw.Clear();
+            restoredSurfaces.Clear();
         }
 
         /// <summary>
